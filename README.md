@@ -1,4 +1,4 @@
-# Skim
+# <img src="public/icon/128.png" alt="" height="32"> Skim
 
 Skim reads a YouTube video's transcript, writes a structured summary of it, and
 answers your follow-up questions about what the video says — so you do not have
