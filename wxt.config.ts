@@ -132,7 +132,10 @@ function msg(key: string): string {
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    name: 'Skim',
+    // The store title, and what store search ranks on hardest: `Skim` alone
+    // matches no query anyone types, so the name carries a descriptive suffix.
+    // `Skim` itself is never translated — only what follows the dash is.
+    name: msg('extName'),
     // Manifest strings come from public/_locales/, which is the ONLY mechanism
     // that reaches them: Chrome reads the manifest before the extension runs, so
     // lib/i18n.ts — which exists at runtime — cannot supply a word here. The two
@@ -140,12 +143,11 @@ export default defineConfig({
     // where no user setting can exist yet, the catalogue where it does.
     //
     // English is the default locale, served to every browser whose language has
-    // no catalogue of its own. `name` stays a literal: `Skim` is a product name,
-    // translated nowhere.
+    // no catalogue of its own.
     default_locale: DEFAULT_LOCALE,
     description: msg('extDescription'),
-    // 'identity' : requis par chrome.identity.launchWebAuthFlow /
-    // getRedirectURL pour l'OAuth PKCE OpenRouter (task-11, section C).
+    // 'identity' is required by chrome.identity.launchWebAuthFlow and
+    // getRedirectURL, which carry the optional OpenRouter PKCE sign-in.
     permissions: ['storage', 'sidePanel', 'identity'],
     host_permissions: [
       'https://*.youtube.com/*',

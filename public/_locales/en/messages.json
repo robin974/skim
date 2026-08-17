@@ -1,4 +1,8 @@
 {
+  "extName": {
+    "message": "Skim — AI video summaries & chat",
+    "description": "Manifest name. Chrome's install dialog, chrome://extensions, and the store title — which is what store search ranks on hardest. Max 75 characters. 'Skim' is the product name and is never translated; only the suffix after the dash is."
+  },
   "extDescription": {
     "message": "Summarize a YouTube video and ask questions about it, without watching it.",
     "description": "Manifest description. Shown in Chrome's install dialog and on chrome://extensions. Max 132 characters."
