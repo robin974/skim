@@ -16,12 +16,12 @@ unpacked extension.
 
 ## What it does
 
-- Summarise the open video in one click, from the YouTube page or from the
+- Summarize the open video in one click, from the YouTube page or from the
   toolbar.
 - Ask follow-up questions, answered from what the video actually says.
 - Choose the language of your summaries, independently of the video's language
   and of the interface language (French and English).
-- Write your own summarising instructions and save them as profiles: a short
+- Write your own summarizing instructions and save them as profiles: a short
   format for news, a detailed one for a conference talk.
 - Reopen a video already processed and get its summary back without spending a
   second call.
@@ -35,7 +35,7 @@ a key by hand.
 The transcript is read from YouTube's own transcript panel, by a content script
 running in the page. That is the only path that works: the `timedtext` endpoint
 requires an anti-bot attestation token and returns an empty body without it. A
-video that offers no transcript cannot be summarised, whatever the provider.
+video that offers no transcript cannot be summarized, whatever the provider.
 
 The transcript, the video's metadata and your prompt then go to the one provider
 you configured, with your own key. Nothing else leaves the machine — there is no
@@ -82,7 +82,7 @@ of a build tells you which of the two you are holding.
 | Path | Role |
 | --- | --- |
 | `entrypoints/background.ts` | Service worker. Routes messages, owns the in-flight guard, emits stream events. |
-| `entrypoints/youtube.content.ts` | Content script. Reads the transcript panel and the video metadata; injects the summarise button. |
+| `entrypoints/youtube.content.ts` | Content script. Reads the transcript panel and the video metadata; injects the summarize button. |
 | `entrypoints/sidepanel/` | React side panel: summary, follow-up conversation, errors. |
 | `entrypoints/options/` | React options page: providers, keys, profiles, languages, data. |
 | `lib/` | Every decision worth testing. Pure modules, no `chrome.*` at import time. |

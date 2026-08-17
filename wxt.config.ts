@@ -5,7 +5,7 @@
 // Node's types for IT alone.
 import { defineConfig } from 'wxt';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { formatVersionName, type BuildInfo } from './lib/build-info';
 
@@ -99,11 +99,51 @@ if (releaseVersion !== null && releaseVersion !== packageVersion) {
   console.warn(`[build] tag names ${releaseVersion}, package.json says ${packageVersion}`);
 }
 
+/** Served to every browser whose language has no catalogue of its own. */
+const DEFAULT_LOCALE = 'en';
+
+/**
+ * The manifest placeholder for a message, proven to exist.
+ *
+ * A placeholder Chrome cannot resolve is not a cosmetic defect: the extension
+ * fails to install. Nothing else catches it — Vitest does not collect this file,
+ * and WXT assembles the manifest after it runs — so the proof belongs where the
+ * placeholder is written, and the placeholder MUST NOT be written by hand.
+ *
+ * Missing from the DEFAULT locale is fatal: that is the one Chrome falls back
+ * to, so nothing resolves. Missing from any other locale only degrades to that
+ * fallback, which is a regression worth saying out loud and not worth stopping
+ * a build for.
+ */
+function msg(key: string): string {
+  const dir = new URL('./public/_locales/', import.meta.url);
+  for (const locale of readdirSync(dir)) {
+    const raw = readFileSync(new URL(`./${locale}/messages.json`, dir), 'utf8');
+    const messages = JSON.parse(raw) as Record<string, { message?: unknown } | undefined>;
+    if (typeof messages[key]?.message === 'string') continue;
+    if (locale === DEFAULT_LOCALE) {
+      throw new Error(`[build] _locales/${locale}/messages.json has no "${key}": Chrome would refuse to install this build`);
+    }
+    console.warn(`[build] _locales/${locale}/messages.json has no "${key}", falling back to ${DEFAULT_LOCALE}`);
+  }
+  return `__MSG_${key}__`;
+}
+
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'Skim',
-    description: "Résume une vidéo YouTube et permet d'en discuter, sans la regarder.",
+    // Manifest strings come from public/_locales/, which is the ONLY mechanism
+    // that reaches them: Chrome reads the manifest before the extension runs, so
+    // lib/i18n.ts — which exists at runtime — cannot supply a word here. The two
+    // mechanisms therefore cover disjoint moments rather than compete: _locales
+    // where no user setting can exist yet, the catalogue where it does.
+    //
+    // English is the default locale, served to every browser whose language has
+    // no catalogue of its own. `name` stays a literal: `Skim` is a product name,
+    // translated nowhere.
+    default_locale: DEFAULT_LOCALE,
+    description: msg('extDescription'),
     // 'identity' : requis par chrome.identity.launchWebAuthFlow /
     // getRedirectURL pour l'OAuth PKCE OpenRouter (task-11, section C).
     permissions: ['storage', 'sidePanel', 'identity'],
@@ -129,7 +169,7 @@ export default defineConfig({
       128: 'icon/128.png',
     },
     action: {
-      default_title: 'Résumer la vidéo',
+      default_title: msg('actionTitle'),
       default_icon: {
         16: 'icon/16.png',
         32: 'icon/32.png',

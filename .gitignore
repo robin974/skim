@@ -1,4 +1,8 @@
-node_modules/
-.output/
-.wxt/
+# No trailing slash: a symlinked node_modules — pnpm, a shared store, a
+# monorepo — is not matched by `node_modules/`, and an untracked entry makes the
+# build read the worktree as dirty and quietly produce a dev build instead of
+# the release the tag names.
+node_modules
+.output
+.wxt
 *.log

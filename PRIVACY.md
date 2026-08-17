@@ -2,7 +2,7 @@
 
 Last updated: 17 August 2026
 
-Skim summarises a YouTube video and lets you ask questions about it. The
+Skim summarizes a YouTube video and lets you ask questions about it. The
 extension has no server of its own: it talks straight to the AI provider you
 choose, with the API key you provide.
 

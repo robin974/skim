@@ -15,7 +15,7 @@ vi.stubGlobal('chrome', {
 });
 
 const {
-  getSettings, setSettings, clearSetting, activeKey, activeModel, modelPatch, languageName, getStoredLanguage,
+  getSettings, setSettings, clearSetting, activeKey, activeModel, modelPatch, languageName, getStoredLanguage, getUiTranslator,
   DEFAULT_SETTINGS, DEFAULT_PROMPT, LANGUAGE_INSTRUCTION, effortKey, storedEffort, effortPatch, resolveEffort, checkedEffort,
   storeKeyPatch, removeKeyPatch, configuredProviders, alternateProvider, maskApiKey, resetAllSettings,
   DEFAULT_PROFILE_ID, defaultProfile, allProfiles, activeProfile, activePrompt,
@@ -435,6 +435,37 @@ describe('getStoredLanguage', () => {
     await setSettings({ language: 'es' });
     await setSettings({ language: '' });
     expect(await getStoredLanguage()).toBe('');
+  });
+});
+
+describe('getUiTranslator', () => {
+  beforeEach(() => { for (const k of Object.keys(store)) delete store[k]; });
+
+  // What the injected YouTube button reads (Msg/GET_UI_STRINGS). The interface
+  // language governs it like every other label, which is the whole point: the
+  // button and the panel it opens are one gesture, and they MUST agree.
+  it('follows the browser when no interface language is stored', async () => {
+    const t = await getUiTranslator();
+    expect(t('youtube.button.label')).toBe('✦ Résumer'); // browser is 'fr-FR'
+  });
+
+  it('follows the explicitly chosen interface language over the browser', async () => {
+    await setSettings({ uiLanguage: 'en' });
+    const t = await getUiTranslator();
+    expect(t('youtube.button.label')).toBe('✦ Summarize');
+    expect(t('youtube.button.aria')).toBe('Summarize this video with AI');
+  });
+
+  it('falls back to the browser when the stored language has no catalogue', async () => {
+    await setSettings({ uiLanguage: 'de' });
+    expect((await getUiTranslator())('youtube.button.label')).toBe('✦ Résumer');
+  });
+
+  // Reading a label MUST NOT be able to rewrite settings: it answers a content
+  // script on every YouTube page, and getSettings() carries the migrations.
+  it('writes nothing', async () => {
+    await getUiTranslator();
+    expect(store).toEqual({});
   });
 });
 

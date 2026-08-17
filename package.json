@@ -1,7 +1,7 @@
 {
   "name": "skim",
-  "version": "1.0.0",
-  "description": "Summarise a YouTube video and ask questions about it, without watching it.",
+  "version": "1.1.1",
+  "description": "Summarize a YouTube video and ask questions about it, without watching it.",
   "license": "GPL-3.0-only",
   "private": true,
   "homepage": "https://github.com/robin974/skim",

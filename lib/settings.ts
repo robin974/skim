@@ -460,6 +460,22 @@ export async function getStoredLanguage(): Promise<string> {
 }
 
 /**
+ * A translator for the interface language in force.
+ *
+ * Narrower than getSettings() on purpose, twice over. It carries the
+ * migrations, and its caller here answers a content script on every YouTube
+ * page: resolving a label MUST NOT be able to rewrite what is stored. And the
+ * content script cannot resolve one itself — importing the catalogue measured
+ * +26 KB on a script that runs inside someone else's page, so the worker
+ * resolves the words and sends those (see Msg/GET_UI_STRINGS).
+ */
+export async function getUiTranslator(): Promise<Translator> {
+  const raw = await chrome.storage.local.get(KEY);
+  const stored = (raw[KEY] as Partial<Settings> | undefined)?.uiLanguage ?? '';
+  return createTranslator(resolveLocale(stored, chrome.i18n.getUILanguage()));
+}
+
+/**
  * "fr" → "français", "en" → "English", "es" → "español". The name is rendered IN
  * the language itself: least ambiguous for a model, and no table to maintain.
  * An unreadable code is returned as is — a summary in the wrong language beats a

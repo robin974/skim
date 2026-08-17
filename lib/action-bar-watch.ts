@@ -1,5 +1,5 @@
 // Decides, for each observed batch of DOM mutations, whether the injected
-// "✦ Résumer" button should be left alone, removed and re-injected, simply
+// summarise button should be left alone, removed and re-injected, simply
 // injected, or whether observation should stop.
 //
 // Injecting the button is a STATE TO MAINTAIN, not a one-shot event. On an

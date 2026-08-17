@@ -9,7 +9,7 @@ import {
   planTranscriptAccess, withUserTakeover, shouldYieldToUser, stealthCss,
   STEALTH_CLASS, STEALTH_STYLE_ID, type TranscriptAccessPlan,
 } from '@/lib/transcript-stealth';
-import type { Msg, TranscriptResult } from '@/lib/messages';
+import type { Msg, TranscriptResult, UiStrings } from '@/lib/messages';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -18,7 +18,7 @@ export default defineContentScript({
   runAt: 'document_idle',
 
   main() {
-    watchForActionBar();
+    void startWatching();
     // YouTube is a SPA: the URL changes without a reload, and the new video
     // needs a fresh injection attempt.
     document.addEventListener('yt-navigate-finish', () => {
@@ -28,7 +28,7 @@ export default defineContentScript({
       // unrequested action this mechanism exists to avoid. What MUST be
       // guaranteed is never leaving the stealth style on the next page.
       void endStealth({ close: false });
-      watchForActionBar();
+      void startWatching();
     });
 
     chrome.runtime.onMessage.addListener((msg: Msg, _sender, sendResponse) => {
@@ -79,8 +79,44 @@ const BTN_ID = 'ai-recap-btn';
 const BTN_CLASS = 'ai-recap-btn';
 const STYLE_ID = 'ai-recap-style';
 
-const LABEL = '✦ Résumer';
-const ARIA_LABEL = 'Résumer cette vidéo avec l’IA';
+/**
+ * The button's words, in the interface language, resolved by the service worker
+ * (Msg/GET_UI_STRINGS). The catalogue cannot come here: importing it measured
+ * +26 KB (14.8 → 41.1) on a script that loads inside every YouTube page.
+ *
+ * Asked once and reused for every injection of the session. Changing the
+ * interface language is done in another tab, and reloading this page is what
+ * applies it — watching for it would be one more subscription living on a third
+ * party's page, for a change nobody makes twice.
+ */
+let uiStrings: UiStrings | null = null;
+
+async function loadUiStrings(): Promise<UiStrings | null> {
+  if (uiStrings) return uiStrings;
+  try {
+    uiStrings = (await chrome.runtime.sendMessage({ type: 'GET_UI_STRINGS' } satisfies Msg)) ?? null;
+  } catch {
+    // An orphaned content script — the extension was reloaded or updated — has
+    // no worker left to answer. That is why no button is better than a wordless
+    // one here: the click it would invite goes to the same missing worker.
+    uiStrings = null;
+  }
+  return uiStrings;
+}
+
+/**
+ * Resolves the button's words, then starts watching for the action bar.
+ *
+ * Awaited before the first injection rather than relabelled after it: the bar
+ * this waits for takes far longer to appear than a message round trip, so
+ * nothing is visibly delayed, and no button ever changes language under the
+ * cursor.
+ */
+async function startWatching(): Promise<void> {
+  const strings = await loadUiStrings();
+  if (!strings) return;
+  watchForActionBar(strings);
+}
 
 /**
  * Injects a stylesheet scoped to `.${BTN_CLASS}`, once per page. A `<style>` a
@@ -186,15 +222,15 @@ function stopWatching() {
  * `maintainButton()`, which re-asks the question via `decideActionBarWatch`
  * (lib/action-bar-watch.ts, tested without a browser).
  */
-function watchForActionBar() {
+function watchForActionBar(strings: UiStrings) {
   stopWatching(); // an SPA navigation changes video: start from a clean state
   reinjectionCount = 0;
-  injectButton(); // immediate attempt: often enough for no perceptible delay
+  injectButton(strings); // immediate attempt: often enough for no perceptible delay
 
   let scheduled = false;
   const attempt = () => {
     scheduled = false;
-    maintainButton();
+    maintainButton(strings);
   };
 
   watchObserver = new MutationObserver(() => {
@@ -208,12 +244,12 @@ function watchForActionBar() {
 }
 
 /**
- * Builds the "✦ Résumer" button and appends it to `bar`. Shared by
+ * Builds the summarise button and appends it to `bar`. Shared by
  * `injectButton` (first placement) and `maintainButton` (replacement after
  * YouTube wiped or invalidated it): both need exactly the same element with the
  * same click handler.
  */
-function buildButton(bar: HTMLElement): void {
+function buildButton(bar: HTMLElement, strings: UiStrings): void {
   ensureStylesInjected();
 
   // Adopts height, radius, size AND font family from a SIBLING button already
@@ -235,8 +271,8 @@ function buildButton(bar: HTMLElement): void {
   btn.style.borderRadius = metrics.borderRadius;
   btn.style.fontSize = metrics.fontSize;
   btn.style.fontFamily = metrics.fontFamily;
-  btn.setAttribute('aria-label', ARIA_LABEL);
-  btn.replaceChildren(document.createTextNode(LABEL));
+  btn.setAttribute('aria-label', strings.buttonAria);
+  btn.replaceChildren(document.createTextNode(strings.buttonLabel));
 
   btn.addEventListener('click', () => {
     // The id is re-read AT CLICK time rather than captured at injection. If
@@ -263,7 +299,7 @@ function buildButton(bar: HTMLElement): void {
 }
 
 /** True if the button is in the DOM when this returns — already there, or just injected. */
-function injectButton(): boolean {
+function injectButton(strings: UiStrings): boolean {
   const existing = document.getElementById(BTN_ID);
   if (existing) {
     // An existing button is not enough: after an SPA navigation YouTube can
@@ -278,7 +314,7 @@ function injectButton(): boolean {
   const videoId = readVideoId(location.href);
   if (!bar || !videoId) return false;
 
-  buildButton(bar);
+  buildButton(bar, strings);
   return true;
 }
 
@@ -294,7 +330,7 @@ function injectButton(): boolean {
  * `findActionBar` runs a second time only on the rare path where something must
  * actually change.
  */
-function maintainButton() {
+function maintainButton(strings: UiStrings) {
   const existing = document.getElementById(BTN_ID);
   const buttonInCurrentBar = existing !== null && isInCurrentActionBar(existing, document);
   if (buttonInCurrentBar) return; // hot path: see above
@@ -324,7 +360,7 @@ function maintainButton() {
 
   if (decision.type === 'remove-and-inject') existing?.remove();
 
-  buildButton(bar);
+  buildButton(bar, strings);
   reinjectionCount += 1;
 }
 

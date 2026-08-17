@@ -4,7 +4,7 @@
 // Reading a transcript needs the CONTENT script, and reaching a content script
 // needs a `tabId` — chrome.runtime.sendMessage never reaches one. The service
 // worker gets that `tabId` from `sender.tab`, which is only set for messages
-// sent BY a content script: the "✦ Résumer" button injected under the video.
+// sent BY a content script: the summarise button injected under the video.
 // Anything sent from an extension page — the panel's "Regenerate", a follow-up
 // question, a resume from the options page — carries no tab. Without this
 // lookup the request leaves with no recipient, no transcript is ever read, and

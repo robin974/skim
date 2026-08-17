@@ -1,4 +1,4 @@
-import { getSettings } from '@/lib/settings';
+import { getSettings, getUiTranslator } from '@/lib/settings';
 import {
   saveConversation, saveConversationTail, getConversation, dropLegacyCache,
 } from '@/lib/conversations';
@@ -7,7 +7,7 @@ import { rememberPendingResume } from '@/lib/pending-resume';
 import { createSummaryInFlight } from '@/lib/summary-inflight';
 import { findVideoTabId } from '@/lib/video-tab';
 import { LLMError } from '@/lib/llm/types';
-import type { Msg, PanelBroadcast, StreamTarget } from '@/lib/messages';
+import type { Msg, PanelBroadcast, StreamTarget, UiStrings } from '@/lib/messages';
 import { formatVersionName, type BuildInfo } from '@/lib/build-info';
 
 export default defineBackground({
@@ -140,6 +140,17 @@ export default defineBackground({
         (async () => {
           if (msg.videoId == null) { sendResponse(null); return; }
           sendResponse(await getConversation(msg.videoId));
+        })();
+        return true;
+      }
+
+      if (msg.type === 'GET_UI_STRINGS') {
+        (async () => {
+          const t = await getUiTranslator();
+          sendResponse({
+            buttonLabel: t('youtube.button.label'),
+            buttonAria: t('youtube.button.aria'),
+          } satisfies UiStrings);
         })();
         return true;
       }

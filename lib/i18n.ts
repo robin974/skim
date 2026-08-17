@@ -42,6 +42,14 @@ const fr = {
   'common.loading': 'Chargement…',
   'common.cancel': 'Annuler',
 
+  // ── YouTube page: the injected button ────────────────────────────────────
+  // The only strings the extension renders inside someone else's page, and the
+  // first it ever shows a user. The star is part of the label rather than of the
+  // markup: it is a word of the sentence for a screen reader that reads neither,
+  // and a translator may want it elsewhere.
+  'youtube.button.label': '✦ Résumer',
+  'youtube.button.aria': 'Résumer cette vidéo avec l’IA',
+
   // ── Options page: structure ──────────────────────────────────────────────
   /** DOCUMENT title only, since the header shows the name itself. */
   'options.title': 'Réglages — Skim',
@@ -308,6 +316,9 @@ type Catalog = Record<MessageKey, string>;
 const en: Catalog = {
   'common.loading': 'Loading…',
   'common.cancel': 'Cancel',
+
+  'youtube.button.label': '✦ Summarize',
+  'youtube.button.aria': 'Summarize this video with AI',
 
   'options.title': 'Settings — Skim',
   'options.tagline': 'The gist of any video, in one click.',

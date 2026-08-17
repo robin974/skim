@@ -13,6 +13,9 @@ export type VideoMeta = {
 
 export type RawSegment = { timestamp: string; text: string };
 
+/** Answer to GET_UI_STRINGS: what the injected button reads, already translated. */
+export type UiStrings = { buttonLabel: string; buttonAria: string };
+
 export type TranscriptResult =
   | { ok: true; segments: RawSegment[]; language: string | null }
   | { ok: false; reason: 'no-panel' | 'no-segments' | 'incomplete' };
@@ -37,6 +40,11 @@ export type Msg =
   | { type: 'GET_META'; videoId: string }
   | { type: 'SEEK'; videoId: string; seconds: number }
   | { type: 'GET_STATE'; videoId: string | null }
+  // The content script renders words too — the button it injects on YouTube —
+  // but it cannot resolve them: importing the catalogue measured +26 KB
+  // (14.8 → 41.1) on a script that loads inside every YouTube page. The worker
+  // holds the catalogue already, so it resolves and sends the words themselves.
+  | { type: 'GET_UI_STRINGS' }
   // Sent by the options page once a key validates and a resume was pending
   // (lib/pending-resume.ts). Unlike SUMMARIZE this MUST NOT call
   // sidePanel.open(): no user gesture on the YouTube tab carries the call, and

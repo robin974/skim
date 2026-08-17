@@ -80,7 +80,7 @@ export type TranscriptAccessPlan = {
 /**
  * GUARD 1 — "the panel was already open".
  *
- * If the user expanded the transcript themselves before clicking "✦ Résumer",
+ * If the user expanded the transcript themselves before clicking the button,
  * the extension MUST NOT touch it: not hide it (it would vanish in front of
  * them, the exact mirror of the defect being fixed) and not close it afterwards
  * (they did not open it for us). Stealth applies only to a panel the extension

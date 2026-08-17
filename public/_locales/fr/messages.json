@@ -1,0 +1,10 @@
+{
+  "extDescription": {
+    "message": "Résume une vidéo YouTube et permet d'en discuter, sans la regarder.",
+    "description": "Manifest description. Shown in Chrome's install dialog and on chrome://extensions. Max 132 characters."
+  },
+  "actionTitle": {
+    "message": "Résumer la vidéo",
+    "description": "Tooltip on the toolbar button."
+  }
+}

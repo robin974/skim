@@ -1,0 +1,10 @@
+{
+  "extDescription": {
+    "message": "Summarize a YouTube video and ask questions about it, without watching it.",
+    "description": "Manifest description. Shown in Chrome's install dialog and on chrome://extensions. Max 132 characters."
+  },
+  "actionTitle": {
+    "message": "Summarize the video",
+    "description": "Tooltip on the toolbar button."
+  }
+}
