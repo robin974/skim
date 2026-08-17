@@ -1,0 +1,384 @@
+/* The same variables as entrypoints/sidepanel/style.css, plus what this page
+ * introduces: the active provider's card, the status chips, the action fill.
+ *
+ * This page keeps its styles INLINE (see ui.tsx). This stylesheet exists only to
+ * carry BOTH themes, which an inline style cannot express: `var(--surface)` in a
+ * JS style object, `@media (prefers-color-scheme)` here. No hardcoded colour may
+ * appear in the .tsx files.
+ */
+:root {
+  --bg: #f9fafe;
+  --fg: #222232;
+  --muted: #6f707e;
+  --border: #dadbe6;
+  --surface: #efeff8;
+  --strong: #0f0f21;
+  --link: #5148b0;
+  --link-hover: #3d2f96;
+
+  /* Field background (inputs, selects). Distinct from --surface: a field must
+     read as hollow and a button as solid, and the two share a line in the
+     composite key field. */
+  --field-bg: #fdfdff;
+  /* Form labels: stronger than --muted, since they name rather than accompany,
+     and weaker than --fg, since they are not the content. */
+  --label: #454657;           /* 8.88:1 on --bg */
+  /* One step darker than --border, for a border that must be seen without
+     framing: the dashed "+ Nouveau profil" row. */
+  --border-strong: #bbbdc9;
+  /* Second-rank information at the right of a row (a key's provenance). */
+  --meta: #6f707e;
+
+  --error-bg: #ffece9;
+  --error-border: #f9bdb7;
+  --error-fg: #972527;
+  --error-muted: #a2504b;
+
+  /* What sits under the pointer: one step from --surface towards --border, the
+     value the panel already uses for a control (--hover, sidepanel/style.css). */
+  --hover: #e4e5f0;
+  /* The same step for a destructive button, between --error-bg and
+     --error-border. --error-fg on it: 6.26:1. */
+  --error-hover: #ffdbd6;
+
+  /* Action fill: the same as the panel's (see .cta-button, sidepanel/style.css). */
+  --accent: #584dc5;
+  --accent-hover: #4433aa;
+  --accent-fg: #ffffff;
+
+  /* The active provider's card: tinted towards the accent, never saturated — it
+     must stand out from neighbouring rows without becoming a banner. */
+  --card-bg: #eff0ff;         /* --link on it: 6.40:1 */
+  --card-border: #d0d3f4;
+
+  /* Header status chips: green for ready, amber for needs-setup. A statement,
+     never an error — hence amber rather than red. Both stay outside the ramp,
+     like the error family: they are semantic before they are decorative, and
+     their internal contrasts are already calibrated. */
+  --ok-bg: #e6f8e6;
+  --ok-border: #9ecc9e;
+  --ok-fg: #1e6626;           /* 6.35:1 on --ok-bg */
+  --warn-bg: #ffefd5;
+  --warn-border: #edc793;
+  --warn-fg: #815200;         /* 5.91:1 on --warn-bg */
+
+  /* Active tab underline. */
+  --tab-active: #5148b0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181f;
+    --fg: #e7e7f0;
+    --muted: #9a9bad;
+    --border: #343542;
+    --surface: #20212a;
+    --strong: #ffffff;
+    --link: #b1b4ff;
+    --link-hover: #cdd1ff;
+
+    --field-bg: #20212a;
+    --label: #c5c6d0;         /* 10.42:1 on --bg */
+    --meta: #9a9bad;
+    --border-strong: #4a4b5a;
+
+    --error-bg: #2a1616;
+    --error-border: #5c2a2a;
+    --error-fg: #ff9d9d;
+    --error-muted: #e08c8c;
+
+    --hover: #292a34;
+    --error-hover: #351a1a;   /* --error-fg on it: 8.04:1 */
+
+    --accent: #584dc5;
+    --accent-hover: #4433aa;
+    --accent-fg: #ffffff;
+
+    --card-bg: #252639;
+    --card-border: #434465;
+
+    --ok-bg: #17251b;
+    --ok-border: #2f5c3a;
+    --ok-fg: #7fd396;
+    --warn-bg: #2a2117;
+    --warn-border: #5c4626;
+    --warn-fg: #e8b877;
+
+    --tab-active: #b1b4ff;
+  }
+}
+
+/* `body` carries an explicit background: without it the page would borrow the
+   browser's white in dark theme, under light text. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--link);
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+/* Native controls (checkboxes, radios, selects) follow the browser theme
+   instead of staying light on a dark background — one declaration, rather than
+   redrawing every control by hand. */
+:root {
+  color-scheme: light dark;
+}
+
+/* Focus visible everywhere: the tabs, effort chips and prompt tokens are
+   <button>s with no permanent border, and without this rule keyboard navigation
+   becomes invisible on them. */
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* ---- Setup assistant (ProvidersTab.tsx) ----
+ *
+ * The tab's styles stay inline, as everywhere on this page. What is here is what
+ * an inline style cannot express: a `:hover`, an animation, and the reduced
+ * motion that turns it off.
+ *
+ * A row's own surface comes from here TOO, and not from a style attribute, for
+ * the reason .profile-card already faces: an inline `background` beats any
+ * stylesheet rule, so a hover declared here would never win against it. A
+ * <button>, not a row with a click handler: Tab and Enter must traverse the
+ * list. Hence the reset to the row it draws. */
+.setup-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--field-bg);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.setup-row:hover {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+/* The step already taken is a way back to it. The underline is declared HERE
+ * rather than inline for the reason .setup-row faces: the step's colour and
+ * background are computed per state in the .tsx, and an inline rule wins over a
+ * stylesheet — so the affordance has to be a property the .tsx never sets. */
+.setup-step-back:hover {
+  text-decoration: underline;
+}
+
+/* Plays on ARRIVAL at a step, never in a loop: each screen is its own element
+ * (see ProvidersTab.tsx), so typing in the key field re-renders without
+ * remounting and without replaying this. */
+.setup-step {
+  animation: ai-recap-step-in 0.22s ease both;
+}
+
+@keyframes ai-recap-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-step {
+    animation: none;
+  }
+}
+
+/* ---- Profiles tab (ProfilesTab.tsx) ----
+ *
+ * The second exception to this page's inline styles, on the same grounds as the
+ * first: what an inline style cannot express. The page is designed at 748 px but
+ * opens in an ordinary tab, which can be narrowed — below 620 px the two columns
+ * become one, which needs a `@media` — and the list rows need `:hover`.
+ * Everything else on this tab stays inline. */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 216px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 620px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A <button>, not a row with a click handler: selecting a profile is an action,
+ * and Tab plus Enter must reach it. Reset to look like the card it replaces. */
+.profile-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--field-bg);
+  font: inherit;
+  transition: background 0.12s ease;
+}
+
+.profile-card:hover {
+  background: var(--surface);
+}
+
+/* The tint the active provider's card already carries, so "active" means one
+ * thing on this page. */
+.profile-card-active,
+.profile-card-active:hover {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+}
+
+.profile-card-name {
+  display: block;
+  font: 600 13px system-ui;
+  color: var(--fg);
+  /* A name is user-written: it wraps inside the 216 px column rather than
+     widening it. */
+  overflow-wrap: anywhere;
+}
+
+.profile-card-active .profile-card-name {
+  color: var(--strong);
+}
+
+.profile-card-meta {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.profile-new {
+  margin-top: 2px;
+  padding: 7px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--link);
+  font: 500 12.5px system-ui;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.profile-new:hover {
+  background: var(--surface);
+}
+
+/* ---- Action buttons (ui.tsx) ----
+ *
+ * The third exception to this page's inline styles, on the same grounds as the
+ * other two: a `:hover` cannot be written in a style attribute, and an inline
+ * `background` would beat any rule declared here — so the fill has to live
+ * here, and with it the border and the colour it belongs to. What a call site
+ * still writes inline is what that site alone changes: a `flex`, a padding, a
+ * heavier type. */
+.action-button {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--fg);
+  cursor: pointer;
+  font: 500 12.5px system-ui;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+
+.action-button:hover {
+  background: var(--hover);
+}
+
+/* Destructive: the error family's border and background, never a solid red. */
+.action-button-danger {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+  color: var(--error-fg);
+}
+
+.action-button-danger:hover {
+  background: var(--error-hover);
+}
+
+/* Stands INSIDE the box that asks the question, which is already --error-bg:
+ * at rest it takes the page's background instead of dissolving into it. Hover
+ * stays the rule above, which wins on specificity. */
+.action-button-on-error {
+  background: var(--bg);
+}
+
+/* The page's only saturated fill — same rule as the panel's .cta-button:
+ * reserved for the action that unblocks everything else, never for an everyday
+ * control. Its hover is the panel's too. */
+.action-button-primary {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  cursor: pointer;
+  font: 600 13.5px system-ui;
+  transition: background 0.12s ease;
+}
+
+.action-button-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* Really `disabled`, never a greyed button that answers nothing: an empty field
+ * has nothing to check. */
+.action-button-primary:disabled {
+  background: var(--border-strong);
+  cursor: not-allowed;
+}
+
+/* The prompt tokens (ProfilesTab.tsx), inserted into the prompt at the caret.
+ * Here for the fill and its hover, as above; the shipped profile is read-only,
+ * so its tokens are disabled and answer nothing. */
+.prompt-token {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--link);
+  cursor: pointer;
+  font: 500 11.5px ui-monospace, monospace;
+  transition: background 0.12s ease;
+}
+
+.prompt-token:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.prompt-token:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

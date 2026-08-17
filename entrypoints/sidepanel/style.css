@@ -1,0 +1,1717 @@
+/* The palette follows the browser theme through prefers-color-scheme: no toggle
+ * button, since the panel lives beside the YouTube video and must not impose a
+ * choice independent of the rest of the window. Every colour goes through a
+ * variable; nothing is hardcoded in the React components.
+ *
+ * `body` carries an explicit background: without it a transparent panel would
+ * borrow whatever the host page paints behind it, including in the wrong theme.
+ *
+ * The ramp sits at hue 282 — the midpoint of the gradient stops of the button
+ * injected into YouTube (#4f7cff at 266, #9b5cff at 297, see
+ * entrypoints/youtube.content.ts) and of the extension icon. That button is the
+ * source of the hue; the panel follows it, never the reverse.
+ */
+:root {
+  --bg: #f9fafe;              /* oklch(0.985 0.006 282) */
+  --fg: #222232;              /* oklch(0.26 0.030 282) — 14.99:1 on --bg */
+  --muted: #6f707e;           /* oklch(0.55 0.022 282) — 4.69:1 on --bg */
+  --border: #dadbe6;          /* oklch(0.895 0.014 282) */
+  --surface: #efeff8;         /* oklch(0.955 0.011 282) */
+  --strong: #0f0f21;          /* oklch(0.18 0.035 282) */
+  --link: #5148b0;            /* oklch(0.47 0.16 282) — 6.93:1 on --bg, 6.33:1 on --surface */
+  --link-hover: #3d2f96;      /* oklch(0.39 0.16 282) */
+  /* One step lighter than --muted, for text that QUALIFIES the text beside it
+     rather than standing on its own — the header's effort segment, which the
+     model owns. */
+  --muted-soft: #8e8f9d;      /* oklch(0.655 0.020 282) */
+  /* One step darker than --border, for a border that must be seen without
+     framing: the dashed "+ Gérer" chip, and a chip's border on hover. */
+  --border-strong: #bbbdc9;   /* oklch(0.80 0.018 282) */
+  /* The vertical rule between two header segments. Same value as
+     --border-strong, distinct name: one draws a control, the other separates. */
+  --separator: #bbbdc9;
+  /* The error family stays outside the ramp: red never collides with a
+     blue-violet accent, and its internal contrasts are calibrated on their own,
+     below. */
+  --error-bg: #ffece9;
+  --error-border: #f9bdb7;
+  --error-fg: #972527;        /* 7.06:1 on --error-bg */
+  /* An error box's second line (what to do) and the key paste field: muted
+     WITHIN the red rather than in neutral grey, so they stay readable on
+     --error-bg without shouting as loudly as --error-fg. */
+  --error-muted: #a2504b;     /* 4.87:1 on --error-bg */
+  --error-field-bg: #fffcfc;
+  --error-field-fg: #7f2021;
+  /* Action fill: reserved for the onboarding call to action and the idle
+     summarise button (see .cta-button below). Distinct from --link, which is
+     calibrated only as a TEXT colour — see .ask-submit. */
+  --accent: #584dc5;          /* oklch(0.50 0.18 282) — white on it: 6.40:1 */
+  --accent-hover: #4433aa;    /* oklch(0.42 0.18 282) */
+  --accent-fg: #ffffff;
+  /* The shimmer's highlight (.skeleton): barely lighter than --surface, never
+     --link or an accent colour — waiting must stay discreet, not draw the eye
+     more than the summary that follows. */
+  --shimmer-highlight: #fdfdff;
+  /* Three steps of the same ramp, between --surface and --border, for what sits
+     under the pointer. Three and not one because the target's size decides how
+     much tint it takes to read: a full menu row needs the least, a 16px cross
+     the most. */
+  --hover-soft: #e9eaf3;      /* oklch(0.935 0.012 282) — a row (menu) */
+  --hover: #e4e5f0;           /* oklch(0.918 0.014 282) — a control (inactive tab) */
+  --hover-strong: #d3d4e2;    /* oklch(0.865 0.017 282) — a small target (close cross) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181f;            /* oklch(0.2097 0.014 282) */
+    --fg: #e7e7f0;            /* 14.40:1 on --bg */
+    --muted: #9a9bad;         /* 6.46:1 on --bg */
+    --border: #343542;
+    --surface: #20212a;
+    --strong: #ffffff;
+    /* Only the accent family differs from the light theme: a periwinkle,
+       calibrated as TEXT on the dark surfaces (9.13:1 on --bg, 8.26:1 on
+       --surface). */
+    --link: #b1b4ff;          /* oklch(0.80 0.12 282) */
+    --link-hover: #cdd1ff;    /* oklch(0.8792 0.09 282) */
+    --muted-soft: #7e7f8f;
+    --border-strong: #4a4b5a;
+    --separator: #4a4b5a;
+    --error-bg: #2a1616;
+    --error-border: #5c2a2a;
+    --error-fg: #ff9d9d;
+    --error-muted: #e08c8c;
+    --error-field-bg: #1c1214;
+    --error-field-fg: #ffd9d9;
+    /* The same fill in both themes: #584dc5 carries white at 6.40:1, above the
+       AA threshold, on light and dark backgrounds alike. */
+    --accent: #584dc5;
+    --accent-hover: #4433aa;
+    --accent-fg: #ffffff;
+    --shimmer-highlight: #3a3b48;
+    --hover-soft: #25262f;
+    --hover: #292a34;
+    --hover-strong: #3a3b46;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font: 14px/1.6 system-ui, sans-serif;
+}
+
+/* #root (the React mount point) must fill the height too: a percentage height
+   only resolves if EVERY ancestor has one, not just html/body. */
+#root {
+  height: 100%;
+}
+
+/* Full-height column: <main> scrolls and .ask-bar stays pinned at the foot.
+   That structure is what makes the question field genuinely fixed rather than
+   scrolling with the rest. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ---- The content's heading (App.tsx, VideoTitle) ----
+ * The summarised video's thumbnail, and beside it the title with the channel ·
+ * duration line under it. The frame is the column's one image, and the first
+ * thing that says WHICH video is on screen — the title takes a moment to read,
+ * and after several summaries in a session the picture is what the eye lands on.
+ *
+ * Two columns rather than one flow with an indent: the text stacks against the
+ * thumbnail's edge on its own, where an indent would be a hardcoded copy of the
+ * image's width, to be corrected each time that width changes.
+ *
+ * `align-items: flex-start` because a title wraps: the thumbnail stays at the
+ * top rather than centring itself against three lines. */
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 22px;
+}
+
+.panel-heading-text {
+  flex: 1 1 auto;
+  /* Lets a long title ellipse or wrap inside the column instead of pushing the
+     thumbnail out of the panel. */
+  min-width: 0;
+}
+
+.panel-title {
+  font: 600 15px/1.35 system-ui, sans-serif;
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  text-wrap: pretty;
+}
+
+/* The extension's own mark, on the heading that names no video (EmptyTitle).
+   Direct child only: the video thumbnail beside a real title is a <span>
+   wrapping its own <img>, sized by .panel-title-thumb below. */
+.panel-title > img {
+  display: block;
+  flex: none;
+  /* Optical alignment with the first line of a 15px/1.35 title, not with the
+     box: the icon's own artwork is inset. */
+  margin-top: 2px;
+}
+
+/* The frame reaches the video exactly as the title does, so it is a button —
+   stripped to nothing, since what it shows is the image inside it. The ring on
+   hover is the counterpart of the title's underline turning --link: same colour,
+   same 0.12s, so hovering either says the same thing. */
+.panel-title-thumb-link {
+  flex: 0 0 auto;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  /* Optical alignment with the first line of a 15px/1.35 title, not with its
+     box. */
+  margin-top: 2px;
+  transition: box-shadow 0.12s ease;
+}
+
+/* A ring rather than an outline: it follows the 4px corner instead of boxing
+   the tile square. */
+.panel-title-thumb-link:hover {
+  box-shadow: 0 0 0 2px var(--link);
+}
+
+/* 16:9, and big enough to be looked at rather than merely noticed: it is the
+   panel's only image, and after several summaries in a session it identifies
+   the video faster than the title does. Corner and background come from the
+   shared thumbnail rule further down. */
+.panel-title-thumb {
+  width: 80px;
+  height: 45px;
+}
+
+/* An action, so a <button>, but drawn as the title it is: the underline is what
+   marks it clickable, discreet at rest and in the link colour under the
+   pointer. */
+.panel-title-link {
+  /* A flex item will not shrink below its longest word without this, and a
+     title holding one long token would push past the panel's edge. */
+  min-width: 0;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+  transition: color 0.12s ease, text-decoration-color 0.12s ease;
+}
+
+.panel-title-link:hover {
+  color: var(--link);
+  text-decoration-color: currentcolor;
+}
+
+.panel-title-link:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Second level of the title it sits under, in the same column. */
+.panel-title-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Names what carries no visible text of its own — the pinned tab, whose glyph is
+   decorative. Never `display: none`, which would take it out of the accessibility
+   tree along with the name it exists to carry. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ---- Summary headings (SummaryView.tsx, one <hN> per Markdown level) ----
+ *
+ * A real scale, not a single level. Every heading used to render as one `h2` at
+ * 14px/600 — body size, and the weight of `.summary strong` — so a heading was
+ * indistinguishable from bold text, and two different ranks from each other.
+ *
+ * Sizes stay contained (20px at most): a side panel column is a few hundred
+ * pixels wide, and an oversized heading wraps instead of structuring. Deep ranks
+ * (h4-h6), which models almost never emit, drop below body size and turn muted:
+ * that is what keeps them distinct from bold once size no longer can. */
+.summary :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--fg);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 20px 0 8px;
+}
+
+.summary :is(h1, h2, h3, h4, h5, h6):first-child {
+  margin-top: 0;
+}
+
+.summary h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 24px;
+}
+
+.summary h2 {
+  font-size: 17px;
+}
+
+.summary h3 {
+  font-size: 15px;
+}
+
+.summary h4 {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.summary h5 {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.summary h6 {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* A heading's timestamp button ("## Title [MM:SS]") inherits the heading's
+ * weight and size through `font: inherit` on .timestamp. Without this rule it
+ * would blend into the heading instead of reading as a separate control, and
+ * would follow its size up to 20px on an h1. Only weight and size are overridden
+ * here; colour, background and pill shape stay .timestamp's. */
+.summary :is(h1, h2, h3, h4, h5, h6) .timestamp {
+  font-weight: 400;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+.summary ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.summary li {
+  margin-bottom: 8px;
+}
+
+.summary p {
+  margin: 0 0 12px;
+}
+
+.summary strong {
+  color: var(--strong);
+  font-weight: 600;
+}
+
+.timestamp {
+  display: inline-block;
+  border: none;
+  background: var(--surface);
+  color: var(--link);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 1px 6px;
+  margin: 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.timestamp:hover {
+  color: var(--link-hover);
+  background: var(--border);
+}
+
+/* ---- Error box (errors.tsx) ----
+ * Three registers stacked from strongest to weakest: the statement
+ * (.error-message), the in-place repair when there is one (.error-key), what to
+ * do (.error-detail), then the buttons. The visual order follows the order of
+ * the gestures, not the order of the code. */
+.error-box {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--error-fg);
+}
+
+.error-box p {
+  margin: 0;
+}
+
+.error-message {
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.error-detail {
+  margin-top: 8px;
+  color: var(--error-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* The panel's only key input: framed INSIDE the error, never elsewhere (see
+ * lib/panel-errors.ts for the boundary). Its surface is darker than the box, so
+ * it reads as a field rather than as text. */
+.error-key {
+  margin-top: 10px;
+}
+
+.error-key-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
+  background: var(--error-field-bg);
+  color: var(--error-field-fg);
+  font: inherit;
+  font-size: 13px;
+}
+
+.error-key-input:focus {
+  outline: 2px solid var(--error-fg);
+  outline-offset: -1px;
+}
+
+.error-key-input:disabled {
+  opacity: 0.6;
+}
+
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.error-box button {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--error-fg);
+  background: transparent;
+  border: 1px solid var(--error-border);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+
+.error-box button:hover {
+  background: var(--error-border);
+}
+
+/* ---- Panel header (PanelHeader.tsx) ----
+ * Discreet chrome, not content: the same muted family as
+ * .summary-footer/.summary-provenance — small text, no saturated fill, one
+ * separating border. Pinned to the TOP of the panel, outside the scrolling
+ * <main>, mirroring .ask-bar at the foot: the current model and the settings
+ * shortcut stay reachable however far the summary scrolls. */
+.panel-header {
+  /* Containing block for the two popovers below: they are anchored to the whole
+     header, not to the narrow disclosure that opens them. */
+  position: relative;
+  flex: 0 0 auto;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* Never wraps. The model group absorbs the free space and the model name
+ * ellipses inside it, so the profile and its separator stay at the end of the
+ * first line at any panel width — the profile is what the user changes per
+ * video, and a control that moves is a control to look for. */
+.panel-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* <details>/<summary>: native disclosure, keyboard and screen reader support
+ * for free, with no hand-rolled popover to reimplement. */
+.model-switcher {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The one wrapping group of the header: model and effort. Out of space, the
+ * effort is the only segment that may drop to a second line. */
+.model-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  /* No column gap: the space before the effort is that segment's own 15px
+     indent. CSS cannot tell a wrapped line from a continued one, and the wrapped
+     case is the one that must be right — the effort then aligns under the
+     provider name rather than under the chevron. On a single line the same 15px
+     reads as the segment break it is. */
+  column-gap: 0;
+  row-gap: 2px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.model-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron, provider and model name: one nowrap segment, and the first thing to
+ * ellipse when the header runs out of room. */
+.model-identity {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chevron drawn in CSS (no image, no innerHTML): points down at rest, up once
+ * the popover is open (see [open] below). */
+.model-identity::before,
+.profile-summary::before {
+  content: '▾';
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.model-switcher[open] .model-identity::before,
+.profile-switcher[open] > .profile-summary::before {
+  content: '▴';
+}
+
+.model-summary:hover,
+.model-switcher[open] > .model-summary {
+  color: var(--fg);
+}
+
+.model-provider {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+.model-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Both popovers escape their disclosure and span the header instead. In flow
+ * they could only be as wide as the trigger that opens them — a profile chip
+ * list under a "▾ Par défaut" a few characters wide — or, sized on their own
+ * content, they would inflate the header row itself.
+ *
+ * Anchored to the BOTTOM of the header, never to the disclosure that opens it:
+ * the profile summary is one line tall, so its own static position sits over the
+ * effort line whenever that one has wrapped. The header's own 8px bottom padding
+ * is the gap. */
+.model-popover,
+.profile-popover {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  z-index: 2;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.model-select,
+.model-manual-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.model-popover-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.model-popover-hint:first-child {
+  margin-top: 0;
+}
+
+/* A link that is really a <button>: it opens a settings tab, it does not
+ * navigate. Shared with the language hint's action, which reads as the same
+ * thing in the same register. */
+.model-popover-link,
+.language-hint-link {
+  cursor: pointer;
+  font: inherit;
+  font-size: inherit;
+  color: var(--link);
+  background: none;
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.model-popover-link:hover,
+.language-hint-link:hover {
+  color: var(--link-hover);
+}
+
+/* Settings shortcut button: icon only, same vocabulary as .regenerate-button —
+ * bordered, discreet, never a saturated fill. Its accessible name comes from
+ * aria-label (see PanelHeader.tsx). */
+.settings-shortcut {
+  flex: 0 0 auto;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 7px;
+}
+
+.settings-shortcut:hover {
+  color: var(--fg);
+  background: var(--border);
+}
+
+/* The applied level, following the model it qualifies: lighter and smaller than
+ * the model, which is the identity — the effort only says how hard it thinks. */
+.model-effort {
+  flex: 0 0 auto;
+  padding-left: 15px;         /* chevron (10px) + its gap (5px): see .model-summary */
+  color: var(--muted-soft);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* ---- Profile switcher (PanelHeader.tsx) ----
+ * The one part of the header that is NOT muted: it is what the user changes per
+ * video, where the model and the effort are set once and forgotten. */
+.header-separator {
+  flex: 0 0 auto;
+  color: var(--separator);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.profile-switcher {
+  flex: 0 0 auto;
+  /* A profile name is user-written and can be anything. Capped and ellipsed
+     (see .profile-name) rather than allowed to push the model out of the
+     header. */
+  max-width: 45%;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  transition: color 0.12s ease;
+}
+
+.profile-summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg);
+}
+
+.profile-summary:hover,
+.profile-switcher[open] > .profile-summary {
+  color: var(--fg);
+}
+
+.profile-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* The provider chips, at the TOP of the model popover: same object as the
+ * profile chips below, one margin apart — it is followed by the model and the
+ * effort it commands, where the profile list stands alone in its own popover. */
+.provider-field {
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+}
+
+.profile-legend {
+  padding: 0;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* The chip IS the radio's <label>: clicking it checks, Tab and the arrows work,
+ * and :focus-visible propagates from the hidden radio. */
+.profile-chip input,
+.effort-chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* One chip vocabulary for everything clickable in the two popovers — profile,
+ * provider and effort values, and the buttons that are not values. Each departs
+ * from it only where it must, below. */
+.profile-chip span,
+.effort-chip span,
+.profile-manage,
+.popover-close {
+  display: inline-block;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+/* On --bg, never on the popover's own --surface: a chip that shares its
+ * background reads as text, not as something to click. */
+.profile-chip span,
+.effort-chip span,
+.popover-close {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.profile-chip span:hover,
+.effort-chip span:hover,
+.popover-close:hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+}
+
+.profile-chip input:checked + span,
+.effort-chip input:checked + span {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.profile-chip input:focus-visible + span,
+.effort-chip input:focus-visible + span {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+/* Dashed, and the only chip in --link: it is a way out of this popover, not a
+ * value to pick. */
+.profile-manage {
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--link);
+}
+
+.profile-manage:hover {
+  color: var(--link-hover);
+}
+
+.effort-field {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.effort-legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.effort-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 5px;
+}
+
+.effort-none {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* The way out of the provider/model/effort popover, which no choice closes on
+ * its own. Right-aligned, and drawn as the chips above it. */
+.popover-close-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* One notch wider than a chip: it stands alone on its row, where the chips sit
+ * in a list whose neighbours already give them a rhythm. */
+.popover-close {
+  padding-inline: 10px;
+}
+
+/* ---- Waiting (Waiting.tsx) ----
+ * A summary takes 10 to 40 s, and a static line proved to read as a stuck
+ * request. The ticking timer is the signal that matters most; the shimmer
+ * (.skeleton) only confirms that something is progressing in the background,
+ * without ever dominating a panel that lives beside the video. */
+.waiting-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+
+.waiting-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(
+    100deg,
+    var(--surface) 30%,
+    var(--shimmer-highlight) 50%,
+    var(--surface) 70%
+  );
+  background-size: 250% 100%;
+  animation: ai-recap-shimmer 1.6s ease-in-out infinite;
+}
+
+.skeleton-line-short {
+  width: 60%;
+}
+
+.waiting-compact .skeleton-line {
+  height: 10px;
+}
+
+@keyframes ai-recap-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+
+/* Still, for whoever asks for it: the timer keeps giving the signal that
+   matters, and the shimmer becomes a plain band of colour. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+    background: var(--surface);
+  }
+}
+
+/* The "more is coming" indicator, placed right after the last character
+   received once a stream has produced its first chunk. */
+.stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--link);
+  vertical-align: middle;
+  animation: ai-recap-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ai-recap-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* AFTER the two rules it neutralises, deliberately: a media query adds no
+   specificity, so an override placed above them would lose to them and this
+   whole block would be decorative. Both dots stay: still, and visible. */
+@media (prefers-reduced-motion: reduce) {
+  .stream-cursor,
+  .session-tab-dot::before {
+    animation: none;
+  }
+}
+
+/* ---- Session tabs (SessionTabs.tsx) ----
+ * Between the header and <main>, and outside the scrolling column like the two
+ * of them: the bar answers "which summary is on screen", and that answer must
+ * not scroll away from what it names.
+ *
+ * The bar sits on --surface and the selected tab on --bg, the panel's own
+ * background, with its bottom border painted that same colour over the bar's:
+ * that is what makes the active tab read as one piece with the content under it
+ * rather than as a button above it. `margin-bottom: -1px` is what lets it cover
+ * that border.
+ */
+.session-tabs {
+  /* Containing block for the "see all" popover, anchored to the whole bar and
+     not to the narrow disclosure that opens it — same reasoning as
+     .panel-header. */
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 8px 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.session-tabs-list {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* Positioning context for the two edge affordances, so they cover the SCROLLING
+   area alone — never the pinned tab or the menu button beside it. */
+.session-tabs-scroll-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+}
+
+/* Scrollbar hidden, not scrolling disabled: a trackpad and a wheel still work,
+   and the chevrons cover the pointer that has neither. */
+.session-tabs-strip {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.session-tabs-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* A fixed width rather than a flexible one: tabs that shrink as the session
+   grows end up unreadable exactly when there are enough of them to need
+   reading. Past that the strip scrolls. */
+.session-tab {
+  flex: 0 0 auto;
+  width: 150px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px 8px;
+  margin-bottom: -1px;
+  border: 1px solid transparent;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.session-tab:hover {
+  background: var(--hover);
+  border-color: var(--hover);
+  color: var(--fg);
+}
+
+.session-tab.is-selected {
+  background: var(--bg);
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+  color: var(--fg);
+}
+
+.session-tab:focus-visible,
+.session-tab-pinned:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+.session-tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The tile keeps its size whether the image arrives, fails or is still loading:
+   the surface underneath is what the tab shows in the meantime, and a removed
+   video never collapses the row. */
+.session-tab-thumb,
+.session-menu-thumb,
+.panel-title-thumb {
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--border);
+}
+
+.session-tab-thumb {
+  width: 28px;
+  height: 17px;
+}
+
+.session-menu-thumb {
+  width: 34px;
+  height: 20px;
+}
+
+.session-tab-thumb img,
+.session-menu-thumb img,
+.panel-title-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* YouTube's smallest thumbnail is 4:3; these tiles are wider than tall, so
+     the frame is cropped rather than letterboxed. */
+  object-fit: cover;
+}
+
+/* Takes the thumbnail's place while the summary is being written. Boxed to the
+   thumbnail's height so a tab does not change size when its generation ends. */
+.session-tab-dot {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-tab-dot::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--link);
+  animation: ai-recap-pulse 1s ease-in-out infinite;
+}
+
+/* On the selected tab only: a cross on every tab turns a row of titles into a
+   row of targets, and the tab under the pointer is not always the one meant to
+   be closed. */
+.session-tab-close {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.session-tab-close:hover {
+  background: var(--hover-strong);
+  color: var(--strong);
+  outline: 1px solid var(--border-strong);
+}
+
+.session-tab-close:focus-visible {
+  outline: 2px solid var(--link);
+}
+
+/* The video being watched, with no summary in this session. Dashed, and narrow
+   enough to hold nothing but its glyph: it is a marker, not a summary, and the
+   room it does not take is room the summaries get. */
+.session-tab-pinned {
+  flex: 0 0 auto;
+  width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 4px 8px;
+  margin-bottom: -1px;
+  border: 1px dashed transparent;
+  border-bottom-style: solid;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.session-tab-pinned:hover {
+  background: var(--hover);
+  color: var(--fg);
+}
+
+.session-tab-pinned.is-selected {
+  background: var(--bg);
+  border-color: var(--border-strong);
+  border-bottom-color: var(--bg);
+  color: var(--fg);
+}
+
+/* 17px, the thumbnail's height, so this tab lines up with the summaries beside
+   it instead of sitting a couple of pixels short. */
+.session-tab-glyph {
+  height: 17px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* Fades the tabs out at the edge it hangs on, so a cut-off title reads as "there
+   is more" rather than as a truncation. `rgb(from …)` keeps the transparent stop
+   the SAME hue as the bar: a plain `transparent` interpolates through black and
+   greys the gradient. */
+.session-tabs-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.session-tabs-edge-left {
+  left: 0;
+  justify-content: flex-start;
+  background: linear-gradient(90deg, var(--surface) 45%, rgb(from var(--surface) r g b / 0));
+}
+
+.session-tabs-edge-right {
+  right: 0;
+  justify-content: flex-end;
+  background: linear-gradient(270deg, var(--surface) 45%, rgb(from var(--surface) r g b / 0));
+}
+
+/* ---- "See all" menu (SessionTabs.tsx, TabsMenu) ----
+ * <details>/<summary> like the header's two popovers: the disclosure, its
+ * keyboard support and its focus handling come from the platform. */
+.session-tabs-menu {
+  flex: 0 0 auto;
+}
+
+.session-tabs-more {
+  /* A <summary> is a list-item by default: `display: block` drops the marker
+     box, and `list-style: none` the marker itself. Both are needed, as for the
+     header's two disclosures. */
+  display: block;
+  margin-bottom: 6px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  list-style: none;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.session-tabs-more::-webkit-details-marker {
+  display: none;
+}
+
+.session-tabs-more:hover,
+.session-tabs-menu[open] > .session-tabs-more {
+  background: var(--border);
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+/* Anchored to the whole bar, hence the left/right of .session-tabs' padding
+   rather than to the disclosure, which sits at its right end. */
+.session-tabs-popover {
+  position: absolute;
+  top: 100%;
+  left: 8px;
+  right: 8px;
+  z-index: 3;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 18px rgb(15 15 33 / 12%);
+}
+
+.session-tabs-popover-title {
+  margin: 0 0 6px;
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.session-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.session-menu-row:hover {
+  background: var(--hover-soft);
+}
+
+/* The row of the summary already on screen: the same surface the bar uses, so
+   it reads as "this one" without a second selected colour to learn. */
+.session-menu-row.is-selected {
+  background: var(--surface);
+}
+
+.session-menu-row:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: -2px;
+}
+
+.session-menu-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-menu-note {
+  flex: 0 0 auto;
+  color: var(--muted-soft);
+  font-size: 11px;
+  white-space: nowrap;
+  /* The count climbs a digit at a time; proportional figures would shift the
+     row's whole right edge with it. */
+  font-variant-numeric: tabular-nums;
+}
+
+.session-menu-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 6px 6px 0;
+  border-top: 1px solid var(--border);
+}
+
+.session-menu-close-all,
+.session-menu-dismiss {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.session-menu-close-all {
+  font-size: 12px;
+  color: var(--link);
+}
+
+.session-menu-close-all:hover {
+  color: var(--link-hover);
+}
+
+.session-menu-dismiss {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.session-menu-dismiss:hover {
+  color: var(--fg);
+}
+
+/* The confirmation takes the footer's place instead of opening a dialog: what
+   it is about to delete stays listed above it, which is the whole question
+   being asked. */
+.session-menu-confirm {
+  padding-top: 8px;
+}
+
+.session-menu-confirm-text {
+  flex: 1 1 auto;
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.session-menu-cancel,
+.session-menu-apply {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.session-menu-cancel {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.session-menu-cancel:hover {
+  color: var(--fg);
+}
+
+/* The error family, for the one destructive action in this panel: it forgets
+   every summary of the session at once. */
+.session-menu-apply {
+  border: 1px solid var(--error-border);
+  background: var(--error-bg);
+  color: var(--error-fg);
+  font-weight: 600;
+}
+
+.session-menu-apply:hover {
+  background: var(--error-border);
+}
+
+/* ---- Quick questions (QuickQuestions.tsx) ----
+ * Full-width rows, in the surface/border vocabulary of .regenerate-button and
+ * .ask-submit. No saturated fill: --accent is reserved for the onboarding call
+ * to action and the idle summarise button, and a third one weakens both.
+ *
+ * The fixed question is separated from the generated ones by colour and by the
+ * ✦ alone — same box, same weight. It is a shortcut, not a stronger action.
+ *
+ * `text-wrap: pretty` because these labels are sentences in a column a few
+ * hundred pixels wide: without it a two-line question leaves one word alone on
+ * the second line. */
+.quick-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.quick-question {
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  text-wrap: pretty;
+  font: 600 13px/1.45 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 11px;
+}
+
+.quick-question:hover {
+  background: var(--border);
+  border-color: var(--border-strong);
+}
+
+.quick-question:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 1px;
+}
+
+/* The catalogue's question (panel.quick.condense), in the colour the panel uses
+   for its own actions rather than for the model's words. */
+.quick-question-fixed {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: var(--link);
+}
+
+.quick-question-fixed:hover {
+  color: var(--link-hover);
+}
+
+/* Never shrinks with the label beside it, and never carries its own line. */
+.quick-sigil {
+  flex: 0 0 auto;
+}
+
+/* ---- Summary provenance (SummaryFooter.tsx) ----
+ * A discreet reference line, never a banner: the same visual family as .muted,
+ * placed just under the summary. The regenerate button shares the
+ * .timestamp/.ask-submit vocabulary — bordered and discreet, never a saturated
+ * fill — but stays visually distinct from a question field: nothing to type,
+ * just an action behind an icon. */
+.summary-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0 20px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.summary-provenance {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.regenerate-button {
+  flex: 0 0 auto;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--link);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+
+.regenerate-button:hover:not(:disabled) {
+  color: var(--link-hover);
+  background: var(--border);
+}
+
+.regenerate-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- Summary language hint (LanguageHint.tsx) ----
+ * Same family as the provenance line above it: a statement, not a banner. The
+ * footer already carries margin-bottom: 20px, which this margin collapses into. */
+.summary-language-hint {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.summary-language-hint p {
+  flex: 1 1 auto;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.language-hint-dismiss {
+  flex: 0 0 auto;
+  cursor: pointer;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  transition: color 0.12s ease;
+}
+
+.language-hint-dismiss:hover {
+  color: var(--fg);
+}
+
+/* ---- Conversation de suivi (Conversation.tsx) ---- */
+.conversation {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.qa-entry .summary {
+  margin-top: 6px;
+}
+
+.qa-question {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+/* ---- Question field (Conversation.tsx, AskBar) ----
+ * Pinned to the foot of the PANEL (see .panel/main above): stays visible however
+ * far the summary and conversation above it scroll. */
+.ask-bar {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.ask-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.ask-input:focus {
+  outline: 2px solid var(--link);
+  outline-offset: -1px;
+}
+
+.ask-input:disabled {
+  opacity: 0.6;
+}
+
+/* Same vocabulary as .timestamp and .error-box button — no button filled with a
+ * saturated colour in this panel. --link is calibrated only as a TEXT colour
+ * readable on --bg/--surface: in dark theme it is a light blue meant for text on
+ * a dark background, not to serve as a background under white text, which would
+ * lose all contrast. */
+.ask-submit {
+  flex: 0 0 auto;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--link);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.ask-submit:hover:not(:disabled) {
+  color: var(--link-hover);
+  background: var(--border);
+}
+
+.ask-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- Unconfigured panel (App.tsx) ----
+ * Takes <main>'s place: vertically centred, with no page title — there is
+ * nothing to title while there is nothing to summarise. */
+.onboarding {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 22px 40px;
+}
+
+.onboarding-mark {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.onboarding-title {
+  font: 600 19px/1.3 system-ui, sans-serif;
+  margin: 0 0 8px;
+  color: var(--strong);
+}
+
+.onboarding-body {
+  margin: 0 0 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.onboarding-hint {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* The ONLY saturated fill in the panel, alongside the idle state's summarise
+ * button. Everything else (.ask-submit, .regenerate-button, .timestamp) stays
+ * bordered and discreet. The exception is justified by what these two buttons
+ * do: one unblocks the whole extension, the other is the panel's reason to
+ * exist. --accent is calibrated as a BACKGROUND (white on top), unlike --link. */
+.cta-button {
+  width: 100%;
+  cursor: pointer;
+  font: 600 14px system-ui, sans-serif;
+  color: var(--accent-fg);
+  background: var(--accent);
+  border: 0;
+  border-radius: 9px;
+  padding: 12px 16px;
+}
+
+.cta-button:hover {
+  background: var(--accent-hover);
+}
+
+.cta-button:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* ---- Idle state with a video (App.tsx) ---- */
+.idle-lead {
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.idle-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* More compact in the card than in onboarding: here it accompanies a title,
+ * there it is the screen's only object. */
+.idle-card .cta-button {
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+/* Note shown during the writing phase: generation lives in the service worker,
+ * not in this document — closing the panel does not interrupt it. */
+.waiting-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Header with no account configured: takes the model picker's place, at the
+ * same muted dimensions (see .model-summary). */
+.panel-header-status {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
