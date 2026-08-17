@@ -107,8 +107,9 @@ the next release.
 ## Support
 
 Skim is free and takes no cut of anything: you pay your AI provider directly,
-for what you use, and nothing reaches me. If it saves you time, you can
-[buy me a coffee](https://buymeacoffee.com/robin974).
+for what you use, and nothing reaches me. If it saves you time:
+
+<a href="https://buymeacoffee.com/robin974"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="60"></a>
 
 ## License
 
