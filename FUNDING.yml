@@ -1,0 +1,4 @@
+# Puts a Sponsor button on the repository page. GitHub reads this file from the
+# repository root, from .github/ or from docs/ — root, because the mirror
+# carries neither of those directories.
+buy_me_a_coffee: robin974

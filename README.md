@@ -104,6 +104,12 @@ Issues and questions are welcome here. Pull requests are read and appreciated,
 but cannot be merged into a mirror: a change lands upstream and comes back with
 the next release.
 
+## Support
+
+Skim is free and takes no cut of anything: you pay your AI provider directly,
+for what you use, and nothing reaches me. If it saves you time, you can
+[buy me a coffee](https://buymeacoffee.com/robin974).
+
 ## License
 
 [GPL-3.0-only](LICENSE). You may use, study, modify and redistribute Skim; a
