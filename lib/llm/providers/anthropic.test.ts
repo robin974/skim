@@ -50,7 +50,11 @@ describe('anthropic: buildChatRequest', () => {
     const body = JSON.parse(init.body as string);
     expect(body.stream).toBe(true);
     expect(body.max_tokens).toBe(4096);
-    expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+    // The user turn carries a prompt-cache breakpoint, which requires the block
+    // form (see lib/llm/cache-anchors.ts).
+    expect(body.messages).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }] },
+    ]);
   });
 
   it('falls back to the default on an empty baseUrl: a cleared field must not send an empty URL', () => {
@@ -70,7 +74,7 @@ describe('reasoning effort: omitted unconditionally — see the comment above th
       expect('output_config' in body).toBe(false);
       expect(body).toEqual({
         model: 'claude-sonnet-4-5', stream: true, max_tokens: 4096,
-        messages: [{ role: 'user', content: 'hi' }],
+        messages: [{ role: 'user', content: [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }] }],
       });
     },
   );
@@ -115,5 +119,35 @@ describe('anthropic: model catalogue', () => {
   it('returns an empty list rather than throwing on an unexpected response', () => {
     expect(anthropic.modelCatalog!.parse({})).toEqual([]);
     expect(anthropic.modelCatalog!.parse(null)).toEqual([]);
+  });
+});
+
+describe('anthropic: prompt cache', () => {
+  const cfg = { apiKey: 'sk-ant-secret' };
+  const bodyOf = (init: RequestInit) => JSON.parse(init.body as string);
+
+  it('marks the transcript turn on a summary', () => {
+    const req = { model: 'claude-sonnet-4-5', turns: [{ role: 'user' as const, text: 'transcript' }] };
+    const { init } = anthropic.buildChatRequest(req, cfg);
+    expect(bodyOf(init).messages).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'transcript', cache_control: { type: 'ephemeral' } }] },
+    ]);
+  });
+
+  it('marks the transcript turn and the question, never the summary between them', () => {
+    // This is the request every follow-up sends: without the two markers the
+    // transcript is billed at full price again on each question.
+    const req = {
+      model: 'claude-sonnet-4-5',
+      turns: [
+        { role: 'user' as const, text: 'transcript' },
+        { role: 'assistant' as const, text: 'summary' },
+        { role: 'user' as const, text: 'question' },
+      ],
+    };
+    const messages = bodyOf(anthropic.buildChatRequest(req, cfg).init).messages;
+    expect(messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+    expect(messages[1].content).toBe('summary');
+    expect(messages[2].content[0].cache_control).toEqual({ type: 'ephemeral' });
   });
 });

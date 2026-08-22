@@ -3,6 +3,8 @@ import type {
 } from '../types';
 import { EFFORT_SCALE } from '../types';
 import { clampEffort } from '../effort';
+import { cacheAnchors, cacheableContent } from '../cache-anchors';
+import type { CacheableBlock } from '../cache-anchors';
 import type { ErrorCode } from '@/lib/messages';
 
 function classifyStatus(status: number): ErrorCode {
@@ -12,8 +14,15 @@ function classifyStatus(status: number): ErrorCode {
   return 'unknown';
 }
 
-function toMessages(turns: ChatTurn[]): { role: 'user' | 'assistant'; content: string }[] {
-  return turns.map((t) => ({ role: t.role, content: t.text }));
+/**
+ * `anchors` is empty for every instance whose caching is automatic, and the
+ * bodies those instances send are byte-identical to the ones from before this
+ * parameter existed — a bare string per message, never a content-part array.
+ */
+function toMessages(
+  turns: ChatTurn[], anchors: number[],
+): { role: 'user' | 'assistant'; content: string | CacheableBlock[] }[] {
+  return turns.map((t, i) => ({ role: t.role, content: cacheableContent(t.text, anchors.includes(i)) }));
 }
 
 /**
@@ -56,6 +65,7 @@ type ProviderOptions = {
   keepModel?: (model: RawModel & { id: string }) => boolean;
   mapEffort?: (effort: EffortScaleLevel) => Record<string, unknown>;
   effortsFor?: (model: string) => EffortSupport;
+  cacheControl?: (model: string) => boolean;
 };
 
 /**
@@ -87,6 +97,9 @@ function createOpenAICompatibleProvider(o: ProviderOptions): Provider {
       // path. It only bites on a caller that bypasses resolveEffort.
       const level = clampEffort(o.effortsFor?.(req.model) ?? NO_EFFORTS, req.effort ?? 'default');
       const extra = level && o.mapEffort ? o.mapEffort(level) : undefined;
+      // Same shape as the effort clamp above: the instance declares what it
+      // supports, and an instance that declares nothing sends nothing.
+      const anchors = o.cacheControl?.(req.model) ? cacheAnchors(req.turns) : [];
       return {
         url: `${baseUrlOf(cfg)}/chat/completions`,
         init: {
@@ -98,7 +111,7 @@ function createOpenAICompatibleProvider(o: ProviderOptions): Provider {
           body: JSON.stringify({
             model: req.model,
             stream: true,
-            messages: toMessages(req.turns),
+            messages: toMessages(req.turns, anchors),
             ...extra,
           }),
         },
@@ -196,10 +209,25 @@ function openRouterEffort(effort: EffortScaleLevel): Record<string, unknown> {
   return effort === 'off' ? { reasoning: { enabled: false } } : { reasoning: { effort } };
 }
 
+/**
+ * The relayed providers whose prompt cache is NOT automatic, and which
+ * therefore need an explicit `cache_control` breakpoint to reuse anything —
+ * OpenRouter passes the marker through to them. Everything else it relays
+ * (OpenAI, DeepSeek, xAI…) caches a matching prefix on its own, so no marker
+ * is sent there: the discount is the same, and a body carrying no content-part
+ * array cannot be refused for its shape.
+ *
+ * This matters for the DEFAULT model, `anthropic/claude-sonnet-4.5`: without
+ * the marker, the extension's own default configuration caches nothing and
+ * every follow-up question resends the whole transcript at full price.
+ */
+const OPENROUTER_EXPLICIT_CACHE = /^(anthropic|google)\//;
+
 export const openrouter = createOpenAICompatibleProvider({
   id: 'openrouter', label: 'OpenRouter',
   defaultBaseUrl: 'https://openrouter.ai/api/v1', defaultModel: 'anthropic/claude-sonnet-4.5',
   keepModel: producesText, mapEffort: openRouterEffort, effortsFor: () => OPENROUTER_EFFORTS,
+  cacheControl: (model) => OPENROUTER_EXPLICIT_CACHE.test(model),
 });
 
 /**

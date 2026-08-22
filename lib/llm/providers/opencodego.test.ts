@@ -342,3 +342,25 @@ describe('opencode-go: identity', () => {
     expect(opencodego.defaultBaseUrl).toBe('https://opencode.ai/zen/go/v1');
   });
 });
+
+describe('opencode-go: prompt cache', () => {
+  const conversation = [
+    { role: 'user' as const, text: 'transcript' },
+    { role: 'assistant' as const, text: 'summary' },
+    { role: 'user' as const, text: 'question' },
+  ];
+
+  it('marks the transcript turn and the question on /messages', () => {
+    const { init } = opencodego.buildChatRequest({ model: 'qwen3.8-max', turns: conversation }, cfg);
+    const messages = bodyOf(init).messages;
+    expect(messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+    expect(messages[1].content).toBe('summary');
+    expect(messages[2].content[0].cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  it('sends bare strings on the two OpenAI protocols, whose cache is automatic', () => {
+    const chat = bodyOf(opencodego.buildChatRequest({ model: 'kimi-k3', turns: conversation }, cfg).init);
+    expect(chat.messages.map((m: { content: unknown }) => m.content))
+      .toEqual(['transcript', 'summary', 'question']);
+  });
+});

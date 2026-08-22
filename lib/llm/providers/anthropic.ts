@@ -1,6 +1,8 @@
 import type {
   BuiltRequest, ChatRequest, ChatTurn, ModelOption, Provider, ProviderConfig,
 } from '../types';
+import { cacheAnchors, cacheableContent } from '../cache-anchors';
+import type { CacheableBlock } from '../cache-anchors';
 import type { ErrorCode } from '@/lib/messages';
 
 const DEFAULT_BASE_URL = 'https://api.anthropic.com';
@@ -15,8 +17,18 @@ function classifyStatus(status: number): ErrorCode {
   return 'unknown';
 }
 
-function toMessages(turns: ChatTurn[]): { role: 'user' | 'assistant'; content: string }[] {
-  return turns.map((t) => ({ role: t.role, content: t.text }));
+/**
+ * Carries the prompt-cache breakpoints (see lib/llm/cache-anchors.ts). Without
+ * them Anthropic caches NOTHING: unlike the OpenAI and Gemini endpoints, whose
+ * prefix cache is automatic, this one only ever reuses what a `cache_control`
+ * block marks. A follow-up would otherwise resend the whole transcript at full
+ * price on every question.
+ */
+function toMessages(
+  turns: ChatTurn[],
+): { role: 'user' | 'assistant'; content: string | CacheableBlock[] }[] {
+  const anchors = cacheAnchors(turns);
+  return turns.map((t, i) => ({ role: t.role, content: cacheableContent(t.text, anchors.includes(i)) }));
 }
 
 function headersFor(cfg: ProviderConfig): Record<string, string> {

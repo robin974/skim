@@ -14,6 +14,18 @@ import type { Conversation } from './conversations';
 
 const SUMMARY: StreamTarget = { kind: 'summary' };
 
+/**
+ * The text of one message as it left for the provider, whichever form the
+ * adapter chose: a bare string, or the content-part array a prompt-cache
+ * breakpoint requires (see lib/llm/cache-anchors.ts). These tests are about what
+ * buildPrompt substitutes, not about the wire shape the provider picked.
+ */
+function messageText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content.map((b: { text?: string }) => b.text ?? '').join('');
+}
+
 const baseSettings: Settings = {
   ...DEFAULT_SETTINGS,
   provider: 'openrouter',
@@ -809,7 +821,7 @@ describe('runSummary — {language} substituted with the language NAME, not the 
     expect(fetchImpl.mock.calls.length).toBe(1);
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    const sent = body.messages?.[0]?.content as string;
+    const sent = messageText(body.messages?.[0]?.content);
 
     expect(sent).toContain('français');
     expect(sent).not.toContain('en fr.');
@@ -833,7 +845,7 @@ describe('runSummary — the language instruction is appended to every prompt', 
 
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    return body.messages?.[0]?.content as string;
+    return messageText(body.messages?.[0]?.content);
   }
 
   it('names the language, for a shipped prompt that no longer mentions one', async () => {
@@ -982,7 +994,7 @@ describe('runSummary — {duration} substituted with a human duration in the sum
 
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    return body.messages?.[0]?.content as string;
+    return messageText(body.messages?.[0]?.content);
   }
 
   it("puts '61 minutes' in the body sent, for a 61-minute video summarised in French", async () => {
@@ -1020,7 +1032,7 @@ describe('runSummary — every PROMPT_TOKEN is substituted', () => {
 
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    const sent = body.messages?.[0]?.content as string;
+    const sent = messageText(body.messages?.[0]?.content);
 
     for (const token of PROMPT_TOKENS) expect(sent, token).not.toContain(token);
   });
@@ -1048,7 +1060,7 @@ describe('runSummary — a placeholder used twice in a custom prompt is substitu
 
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    const sent = body.messages?.[0]?.content as string;
+    const sent = messageText(body.messages?.[0]?.content);
 
     // toContain, not toBe: the language block is appended after the prompt (see
     // LANGUAGE_INSTRUCTION, lib/settings.ts). One contiguous match still pins
@@ -1117,15 +1129,17 @@ describe('runAsk', () => {
     expect(fetchImpl.mock.calls.length).toBe(1);
     const init = fetchImpl.mock.calls[0]?.[1];
     const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}');
-    const messages = body.messages as { role: string; content: string }[];
+    const messages = body.messages as { role: string; content: unknown }[];
     expect(messages).toHaveLength(3);
-    expect(messages[0]).toEqual({ role: 'user', content: savedConversation.turns[0]?.text });
-    expect(messages[2]).toEqual({ role: 'user', content: 'Et le monde, dans tout ça ?' });
+    expect(messages[0]?.role).toBe('user');
+    expect(messageText(messages[0]?.content)).toBe(savedConversation.turns[0]?.text);
+    expect(messages[2]?.role).toBe('user');
+    expect(messageText(messages[2]?.content)).toBe('Et le monde, dans tout ça ?');
 
     // The point that matters: the transcript text appears only ONCE in the body
     // sent, never re-extracted or re-injected.
     const occurrences = body.messages
-      .map((m: { content: string }) => m.content)
+      .map((m: { content: unknown }) => messageText(m.content))
       .join('\n')
       .split('Bonjour le monde').length - 1;
     expect(occurrences).toBe(1);

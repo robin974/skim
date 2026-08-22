@@ -128,10 +128,18 @@ describe('effort de raisonnement — OpenRouter (reasoning.effort)', () => {
   const req = { model: 'anthropic/claude-sonnet-4.5', turns: [{ role: 'user' as const, text: 'salut' }] };
   const cfg = { apiKey: 'sk-secret' };
 
-  it('absent: the body is byte-identical to before this setting existed', () => {
+  it('absent: the body carries the request and nothing else', () => {
     const { init } = openrouter.buildChatRequest(req, cfg);
+    // A relayed Anthropic model carries a prompt-cache breakpoint, hence the
+    // block form (see lib/llm/cache-anchors.ts). The effort setting adds nothing
+    // on top of it: the comparison stays byte-exact.
     expect(init.body).toBe(JSON.stringify({
-      model: req.model, stream: true, messages: [{ role: 'user', content: 'salut' }],
+      model: req.model,
+      stream: true,
+      messages: [{
+        role: 'user',
+        content: [{ type: 'text', text: 'salut', cache_control: { type: 'ephemeral' } }],
+      }],
     }));
   });
 
@@ -310,5 +318,45 @@ describe('openai-compatible : instances', () => {
   });
   it('les quatre ids sont distincts', () => {
     expect(new Set([openrouter.id, openai.id, deepseek.id, custom.id]).size).toBe(4);
+  });
+});
+
+describe('openai-compatible: prompt cache', () => {
+  const cfg = { apiKey: 'k' };
+  const conversation = [
+    { role: 'user' as const, text: 'transcript' },
+    { role: 'assistant' as const, text: 'summary' },
+    { role: 'user' as const, text: 'question' },
+  ];
+  const messagesOf = (init: RequestInit) => JSON.parse(init.body as string).messages;
+  const contents = (init: RequestInit) => messagesOf(init).map((m: { content: unknown }) => m.content);
+
+  it('marks the transcript turn and the question for a relayed Anthropic model', () => {
+    const { init } = openrouter.buildChatRequest({ model: 'anthropic/claude-sonnet-4.5', turns: conversation }, cfg);
+    const messages = messagesOf(init);
+    expect(messages[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+    expect(messages[1].content).toBe('summary');
+    expect(messages[2].content[0].cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  it('marks a relayed Google model too', () => {
+    const { init } = openrouter.buildChatRequest({ model: 'google/gemini-2.5-flash', turns: conversation }, cfg);
+    expect(messagesOf(init)[0].content[0].cache_control).toEqual({ type: 'ephemeral' });
+  });
+
+  it('sends nothing extra for a relayed model whose cache is automatic', () => {
+    const { init } = openrouter.buildChatRequest({ model: 'openai/gpt-4o-mini', turns: conversation }, cfg);
+    expect(contents(init)).toEqual(['transcript', 'summary', 'question']);
+  });
+
+  it.each([
+    ['openai', openai, 'gpt-4o-mini'],
+    ['deepseek', deepseek, 'deepseek-chat'],
+    ['custom', custom, 'whatever'],
+  ] as const)('%s never sends a content-part array', (_label, provider, model) => {
+    // Their prefix cache is automatic, and an arbitrary endpoint is not
+    // guaranteed to accept the array form where a string is expected.
+    const { init } = provider.buildChatRequest({ model, turns: conversation }, cfg);
+    expect(contents(init)).toEqual(['transcript', 'summary', 'question']);
   });
 });

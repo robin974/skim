@@ -12,6 +12,7 @@ import type {
   BuiltRequest, ChatRequest, ChatTurn, EffortScaleLevel, EffortSupport, ModelOption, Provider, ProviderConfig,
 } from '../types';
 import { clampEffort } from '../effort';
+import { cacheAnchors, cacheableContent } from '../cache-anchors';
 import type { ErrorCode } from '@/lib/messages';
 
 const DEFAULT_BASE_URL = 'https://opencode.ai/zen/go/v1';
@@ -315,11 +316,17 @@ function chatBody(req: ChatRequest): string {
  * a summary's ~1,500 tokens.
  */
 function messagesBody(req: ChatRequest): string {
+  // Prompt-cache breakpoints, as on the anthropic provider: this protocol caches
+  // only what `cache_control` marks (see lib/llm/cache-anchors.ts). The two
+  // OpenAI protocols above need none — their prefix cache is automatic.
+  const anchors = cacheAnchors(req.turns);
   return JSON.stringify({
     model: req.model,
     stream: true,
     max_tokens: 4096,
-    messages: req.turns.map((t) => ({ role: t.role, content: t.text })),
+    messages: req.turns.map((t, i) => ({
+      role: t.role, content: cacheableContent(t.text, anchors.includes(i)),
+    })),
   });
 }
 
