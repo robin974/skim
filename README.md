@@ -33,9 +33,7 @@ a key by hand.
 ## How it works
 
 The transcript is read from YouTube's own transcript panel, by a content script
-running in the page. That is the only path that works: the `timedtext` endpoint
-requires an anti-bot attestation token and returns an empty body without it. A
-video that offers no transcript cannot be summarized, whatever the provider.
+running in the page. A video that offers no transcript cannot be summarized, whatever the provider.
 
 The transcript, the video's metadata and your prompt then go to the one provider
 you configured, with your own key. Nothing else leaves the machine — there is no
@@ -81,10 +79,7 @@ Tests sit next to the code they cover, under `lib/`.
 
 ## Contributing
 
-Issues and questions are welcome here. Pull requests are read and appreciated,
-though a change is applied in the development repository rather than merged into
-this one.
-
+Issues and questions are welcome here. Pull requests are read and appreciated.
 ## Support
 
 Skim is free and takes no cut of anything: you pay your AI provider directly,
