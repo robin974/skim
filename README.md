@@ -8,11 +8,15 @@ A Chrome extension (Manifest V3). It has no server of its own and resells no
 subscription: it talks straight to the AI provider you choose, with the API key
 you provide, and you are billed by that provider for what you use.
 
-## Status
+## Install
 
-Not on the Chrome Web Store yet — the first submission is pending review. Until
-then, [build it from source](#build-it-yourself); the result is a normal
-unpacked extension.
+[Install Skim from the Chrome Web Store](https://chromewebstore.google.com/detail/skim-%E2%80%94-ai-video-summaries/dlocafbncblkfjfpnodekcoepfgdcjna)
+— Chrome, and any Chromium browser that reads the store. Then open the options
+page and paste a key for the provider you pick: nothing is summarized until one
+is there.
+
+Or [build it from source](#build-it-yourself); the result is a normal unpacked
+extension.
 
 ## What it does
 
