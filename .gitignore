@@ -6,3 +6,26 @@ node_modules
 .output
 .wxt
 *.log
+
+# Internal working files: agent configuration, Web Store notes, the prompt
+# benchmark corpus and its transcripts. This repository is what a user reads to
+# verify what they installed and what a contributor reads to change it; none of
+# that is either. They are versioned all the same, in a second git history over
+# the same working tree (`.git-internal`, private — see CLAUDE.md).
+#
+# This list and `.git-internal/info/exclude` MUST stay in step: a path named in
+# neither is published by accident, a path named here alone is versioned
+# nowhere.
+.git-internal
+CLAUDE.md
+CHROMEWEBSTORE.md
+skills-lock.json
+docs/
+fixtures/
+.agents/
+.claude/
+
+# The release workflow explains itself by pointing at CLAUDE.md, which is not
+# published. It stays internal until it reads for someone who cannot open that
+# file — and until then, no tag triggers a release.
+.github/
