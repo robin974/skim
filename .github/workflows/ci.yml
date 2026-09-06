@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # lts/* rather than a pinned major: nothing here depends on a Node
+          # version, and a pin silently rots into an unsupported release.
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      # The build is part of the check: a type error is not the only way to
+      # break it — a manifest or an entrypoint can fail to bundle while every
+      # test passes, since Vitest only collects lib/.
+      - run: npm run build

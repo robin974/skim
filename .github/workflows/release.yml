@@ -1,0 +1,104 @@
+name: Release
+
+# Tagging is the release act: nothing but a vX.Y.Z tag naming HEAD makes a build
+# a release. The build itself asks git whether such a tag exists (wxt.config.ts)
+# — no flag, no environment variable — so pushing the tag is all this workflow
+# has to be told.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # gh release create
+
+# The Chrome Web Store upload stays silent until the repository has its
+# secrets: the step below is skipped while CWS_EXTENSION_ID is unset, and the
+# GitHub release still ships. The service account credentials come from a
+# Google Cloud service account granted access to the Web Store publisher
+# account; the extension ID and the publisher ID are visible in the developer
+# dashboard.
+env:
+  CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+  CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+  CWS_SERVICE_ACCOUNT_EMAIL: ${{ secrets.CWS_SERVICE_ACCOUNT_EMAIL }}
+  CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build recognises a release by asking git whether a tag names
+          # HEAD. The default shallow checkout fetches no tags, so it would
+          # produce a DEV build here, silently — hence the full history.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: The tag must name the version in package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(jq -r .version package.json)"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} names ${tag}, package.json says ${pkg}. Run 'npm version ${tag}' on main, push, then move the tag."
+            exit 1
+          fi
+
+      - run: npm run zip
+
+      # Proves the release path actually fired in CI rather than only on a
+      # developer's machine. A missing tag or a dirty tree degrades the build to
+      # a dev build, which is the right default everywhere EXCEPT here, where it
+      # would ship a branch name and a sha to the Web Store.
+      - name: The build must have recognised a release
+        run: |
+          manifest=.output/chrome-mv3/manifest.json
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(jq -r .version "$manifest")"
+          version_name="$(jq -r '.version_name // ""' "$manifest")"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::manifest version ${version}, tag ${tag}"
+            exit 1
+          fi
+          if [ -n "$version_name" ]; then
+            echo "::error::version_name is '${version_name}': this is a dev build. The tag or the worktree state was not what the build expected."
+            exit 1
+          fi
+          echo "release build ${version}, no provenance shipped"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # create fails when the release already exists — a rerun after the
+          # store secrets were added, say. upload keeps that rerun green and
+          # refreshes the asset instead.
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            .output/*-chrome.zip \
+          || gh release upload "$GITHUB_REF_NAME" --clobber .output/*-chrome.zip
+
+      # Uploads the package to the Chrome Web Store as a DRAFT and stops there:
+      # submitting for review is an outward-facing, hard-to-take-back act, and it
+      # stays a human decision in the dashboard. Drop --chrome-skip-submit-review
+      # to submit automatically.
+      - name: Upload to the Chrome Web Store
+        if: env.CWS_EXTENSION_ID != ''
+        run: |
+          npx wxt submit \
+            --chrome-api-version v2 \
+            --chrome-zip .output/*-chrome.zip \
+            --chrome-extension-id "$CWS_EXTENSION_ID" \
+            --chrome-publisher-id "$CWS_PUBLISHER_ID" \
+            --chrome-service-account-client-email "$CWS_SERVICE_ACCOUNT_EMAIL" \
+            --chrome-service-account-private-key "$CWS_SERVICE_ACCOUNT_KEY" \
+            --chrome-skip-submit-review

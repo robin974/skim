@@ -24,8 +24,3 @@ docs/
 fixtures/
 .agents/
 .claude/
-
-# The release workflow explains itself by pointing at CLAUDE.md, which is not
-# published. It stays internal until it reads for someone who cannot open that
-# file — and until then, no tag triggers a release.
-.github/
