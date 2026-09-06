@@ -7,6 +7,7 @@ const turns = [{ role: 'user' as const, text: 'salut' }];
 
 const bodyOf = (init: RequestInit) => JSON.parse(init.body as string);
 const headersOf = (init: RequestInit) => init.headers as Record<string, string>;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('opencode-go: protocol routing', () => {
   it('routes a model absent from the table to /chat/completions', () => {
@@ -290,6 +291,30 @@ describe('opencode-go: classifyStatus', () => {
   it('maps 529 to overloaded', () => expect(opencodego.classifyStatus(529)).toBe('overloaded'));
   it('does NOT blame the key on a 400: that is the code for a misrouted model', () => {
     expect(opencodego.classifyStatus(400)).toBe('unknown');
+  });
+});
+
+describe('opencode-go: session header', () => {
+  // The gateway rejects requests without x-opencode-session since 2026-09-06 —
+  // on all three protocols, since it sits on the headers, not the body.
+  it('carries the conversation id on all three wires', () => {
+    for (const model of ['deepseek-v4-pro', 'qwen3.8-max', 'grok-4.5']) {
+      const { init } = opencodego.buildChatRequest({ model, turns, sessionId: 'conv-1' }, cfg);
+      expect(headersOf(init)['x-opencode-session']).toBe('conv-1');
+    }
+  });
+
+  it('falls back to a per-request UUID when the caller has no conversation id', () => {
+    const first = headersOf(opencodego.buildChatRequest({ model: 'kimi-k3', turns }, cfg).init);
+    const second = headersOf(opencodego.buildChatRequest({ model: 'kimi-k3', turns }, cfg).init);
+    expect(first['x-opencode-session']).toMatch(UUID_RE);
+    expect(second['x-opencode-session']).toMatch(UUID_RE);
+    expect(first['x-opencode-session']).not.toBe(second['x-opencode-session']);
+  });
+
+  it('marks the one-off requests too — a validation refused for a missing header would read as a bad key', () => {
+    expect(headersOf(opencodego.buildValidateRequest(cfg).init)['x-opencode-session']).toMatch(UUID_RE);
+    expect(headersOf(opencodego.modelCatalog!.buildRequest(cfg).init)['x-opencode-session']).toMatch(UUID_RE);
   });
 });
 

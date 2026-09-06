@@ -61,6 +61,15 @@ export type ChatRequest = {
   turns: ChatTurn[];
   /** Absent ≡ 'default': see EffortLevel above. */
   effort?: EffortLevel;
+  /**
+   * Stable id of ONE conversation, when the caller knows one. OpenCode Go
+   * requires it as the `x-opencode-session` header — per-conversation routing
+   * and prompt-cache affinity, enforced since 2026-09-06 — and every other
+   * provider ignores it. Derived from the video id (lib/session-id.ts); absent,
+   * the one provider that needs it falls back to a per-request UUID rather than
+   * let the request be rejected.
+   */
+  sessionId?: string;
 };
 
 /** A provider's user-side configuration. */

@@ -1,6 +1,6 @@
 # Privacy policy — Skim
 
-Last updated: 17 August 2026
+Last updated: 6 September 2026
 
 Skim summarizes a YouTube video and lets you ask questions about it. The
 extension has no server of its own: it talks straight to the AI provider you
@@ -33,6 +33,11 @@ chose**:
 - the video's transcript, read from YouTube's transcript panel;
 - the video's title, channel, description and duration;
 - your prompt, then your follow-up questions.
+
+Requests to OpenCode Go also carry a technical header the service requires, an
+opaque identifier per conversation, derived from the video's id: it contains no
+personal data and serves only to route the requests of one conversation
+together.
 
 It is sent with your own API key. Your data therefore passes through the
 provider you chose and is subject to that provider's privacy policy:

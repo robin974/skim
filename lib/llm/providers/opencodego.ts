@@ -216,6 +216,19 @@ function bearer(cfg: ProviderConfig): Record<string, string> {
   return { 'content-type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` };
 }
 
+/**
+ * The gateway routes and caches per conversation through this header — required
+ * since 2026-09-06, rejected without it (see lib/session-id.ts for the
+ * derivation). A request built without a conversation id still MUST go out:
+ * the fallback is a per-request UUID, which costs only the affinity benefit,
+ * where a missing header would cost the whole request. Takes the one field it
+ * reads so the one-off requests (validate, catalog) can call it with no
+ * conversation at all.
+ */
+function sessionHeader(req: { sessionId?: string }): Record<string, string> {
+  return { 'x-opencode-session': req.sessionId ?? crypto.randomUUID() };
+}
+
 function baseUrlOf(cfg: ProviderConfig): string {
   return cfg.baseUrl || DEFAULT_BASE_URL;
 }
@@ -379,6 +392,7 @@ export const opencodego: Provider = {
           method: 'POST',
           headers: {
             ...bearer(cfg),
+            ...sessionHeader(req),
             // The gateway expects the OpenCode key, but this path speaks the
             // Anthropic protocol, and the reference clients send `x-api-key` +
             // `anthropic-version`. Both authentication forms go out rather than
@@ -395,13 +409,13 @@ export const opencodego: Provider = {
     if (wire === 'responses') {
       return {
         url: `${baseUrl}/responses`,
-        init: { method: 'POST', headers: bearer(cfg), body: responsesBody(req) },
+        init: { method: 'POST', headers: { ...bearer(cfg), ...sessionHeader(req) }, body: responsesBody(req) },
       };
     }
 
     return {
       url: `${baseUrl}/chat/completions`,
-      init: { method: 'POST', headers: bearer(cfg), body: chatBody(req) },
+      init: { method: 'POST', headers: { ...bearer(cfg), ...sessionHeader(req) }, body: chatBody(req) },
     };
   },
 
@@ -450,9 +464,12 @@ export const opencodego: Provider = {
    * subscription quota on every key paste.
    */
   buildValidateRequest(cfg: ProviderConfig): BuiltRequest {
+    // No conversation exists on a key check, so the header carries a per-request
+    // UUID: it goes out in case the requirement extends beyond inference, and
+    // a validation that 400s would look like a bad key.
     return {
       url: `${baseUrlOf(cfg)}/usage`,
-      init: { headers: { Authorization: `Bearer ${cfg.apiKey}` } },
+      init: { headers: { Authorization: `Bearer ${cfg.apiKey}`, ...sessionHeader({}) } },
     };
   },
 
@@ -463,7 +480,7 @@ export const opencodego: Provider = {
     buildRequest(cfg: ProviderConfig): BuiltRequest {
       return {
         url: `${baseUrlOf(cfg)}/models`,
-        init: { headers: { Authorization: `Bearer ${cfg.apiKey}` } },
+        init: { headers: { Authorization: `Bearer ${cfg.apiKey}`, ...sessionHeader({}) } },
       };
     },
     parse(json: unknown): ModelOption[] {

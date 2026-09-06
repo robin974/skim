@@ -8,6 +8,7 @@ import {
   DEFAULT_SETTINGS, DEFAULT_PROMPT, effortKey, type Settings,
 } from './settings';
 import { getProvider } from './llm';
+import { conversationSessionId } from './session-id';
 import { PROMPT_TOKENS } from './prompt-tokens';
 import type { Msg, PanelBroadcast, StreamTarget, TranscriptResult, VideoMeta } from './messages';
 import type { Conversation } from './conversations';
@@ -1038,6 +1039,25 @@ describe('runSummary — every PROMPT_TOKEN is substituted', () => {
   });
 });
 
+// OpenCode Go rejects a request without this header since 2026-09-06
+// (lib/session-id.ts): the plumbing from videoId to the wire is what these
+// tests buy, end to end through the REAL adapter.
+describe('runSummary — the conversation travels as x-opencode-session', () => {
+  it('sends the id derived from the video', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sseOpenAI(['Bon']));
+    const { deps } = makeDeps({
+      settings: { ...baseSettings, provider: 'opencode-go', apiKeys: { 'opencode-go': 'sk-go' } },
+      ask: fakeAsk({ transcript: okTranscript, meta: fakeMeta }),
+      fetchImpl,
+    });
+    await runSummary('v1', deps);
+
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect((init?.headers as Record<string, string>)['x-opencode-session'])
+      .toBe(conversationSessionId('v1'));
+  });
+});
+
 // The prompt is user-editable, and nothing stops someone reusing a placeholder
 // twice. Proof
 // que l'orchestrateur substitue bien TOUTES les occurrences (replaceAll),
@@ -1160,6 +1180,22 @@ describe('runAsk', () => {
     expect(saved.turns[2]).toEqual({ role: 'user', text: 'Et le monde, dans tout ça ?' });
     expect(saved.turns[3]).toEqual({ role: 'assistant', text: 'Le monde.' });
     expect(saved.status).toBe('done');
+  });
+
+  it('sends the SAME x-opencode-session the summary was generated with, derived from the video', async () => {
+    // Proven through the REAL opencodego adapter: it is the one provider that
+    // requires the header (enforced since 2026-09-06, lib/session-id.ts), so
+    // it is the only one where the plumbing is observable on the wire.
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(sseOpenAI(['Le ']));
+    const { deps } = makeAskDeps({
+      settings: { ...baseSettings, provider: 'opencode-go', apiKeys: { 'opencode-go': 'sk-go' } },
+      fetchImpl,
+    });
+    await runAsk('v1', 'Et le monde, dans tout ça ?', 'q1', deps);
+
+    const init = fetchImpl.mock.calls[0]?.[1];
+    expect((init?.headers as Record<string, string>)['x-opencode-session'])
+      .toBe(conversationSessionId('v1'));
   });
 
   it("emits a clean 'no-conversation' ERROR, with no fetch and no exception, when none exists", async () => {
