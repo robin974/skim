@@ -69,6 +69,7 @@ jobs:
       - name: status
         if: inputs.action == 'status'
         env:
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CWS_SERVICE_ACCOUNT_EMAIL }}
           CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
         run: |
           npx wxt submit status \
