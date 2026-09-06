@@ -91,8 +91,14 @@ jobs:
       # submitting for review is an outward-facing, hard-to-take-back act, and it
       # stays a human decision in the dashboard. Drop --chrome-skip-submit-review
       # to submit automatically.
+      #
+      # The private key travels through the environment, never through a flag:
+      # npx re-parses its command line through a shell, which splits a multi-line
+      # PEM into one argument per line — and echoes the whole key into the log.
       - name: Upload to the Chrome Web Store
         if: env.CWS_EXTENSION_ID != ''
+        env:
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
         run: |
           npx wxt submit \
             --chrome-api-version v2 \
@@ -100,5 +106,4 @@ jobs:
             --chrome-extension-id "$CWS_EXTENSION_ID" \
             --chrome-publisher-id "$CWS_PUBLISHER_ID" \
             --chrome-service-account-client-email "$CWS_SERVICE_ACCOUNT_EMAIL" \
-            --chrome-service-account-private-key "$CWS_SERVICE_ACCOUNT_KEY" \
             --chrome-skip-submit-review
