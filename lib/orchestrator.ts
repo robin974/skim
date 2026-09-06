@@ -13,6 +13,7 @@ import {
 } from '@/lib/settings';
 import type { Settings } from '@/lib/settings';
 import type { Conversation, ConversationDraft, ConversationStatus } from '@/lib/conversations';
+import { conversationSessionId } from '@/lib/session-id';
 import { createThrottledPersist } from '@/lib/throttled-persist';
 import type { PendingResume } from '@/lib/pending-resume';
 import type {
@@ -287,6 +288,11 @@ export async function runSummary(videoId: string, deps: OrchestratorDeps, regene
     role: 'user', text: prompt.replaceAll('{transcript}', groupSegments(tr.segments)),
   };
   const tailPersist = makeTailPersist(userTurn);
+  // One id per conversation — the video — carried to the provider for its
+  // per-conversation routing (x-opencode-session; see lib/session-id.ts).
+  // Computed ONCE here so every attempt of withRetry below, and every follow-up
+  // question runAsk asks later, sends the same value.
+  const sessionId = conversationSessionId(videoId);
   // Reported in summaryMeta below: the fallback does not hide, it surfaces in
   // the provenance shown under the summary (see streamChat, lib/llm/stream.ts).
   //
@@ -307,6 +313,7 @@ export async function runSummary(videoId: string, deps: OrchestratorDeps, regene
         {
           model: modelName,
           turns: [userTurn],
+          sessionId,
           // undefined once the fallback has happened: see effortDropped above.
           effort: effortDropped ? undefined : resolveEffort(settings),
         },
@@ -402,6 +409,10 @@ export async function runAsk(
 
   const questionTurn: ChatTurn = { role: 'user', text: question };
   const turns: ChatTurn[] = [...conversation.turns, questionTurn];
+  // Same id the summary was generated with (lib/session-id.ts derives it from
+  // the video id, which IS the conversation here), so the follow-up lands on
+  // the same route the summary primed.
+  const sessionId = conversationSessionId(videoId);
 
   let full = '';
   // Same cross-attempt memory as runSummary, for the same reason: streamChat's
@@ -419,6 +430,7 @@ export async function runAsk(
       {
         model: activeModel(settings),
         turns,
+        sessionId,
         effort: effortDropped ? undefined : resolveEffort(settings),
       },
       { apiKey: key, baseUrl: settings.provider === 'custom' ? settings.customBaseUrl : undefined },
