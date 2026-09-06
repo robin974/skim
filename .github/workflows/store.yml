@@ -1,0 +1,89 @@
+name: Store
+
+# Manual store operations that reuse the repository secrets, so the service
+# account key file never has to live on a contributor's machine. status is
+# read-only; submit rebuilds the package at the dispatched ref, uploads it and
+# submits it for review — dispatch on a vX.Y.Z tag, never on a branch (a dev
+# build would carry a branch name and a sha into the store package).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: status is read-only; submit builds, uploads and submits for review
+        type: choice
+        default: status
+        options: [status, submit]
+
+permissions:
+  contents: read
+
+env:
+  CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+  CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+  CWS_SERVICE_ACCOUNT_EMAIL: ${{ secrets.CWS_SERVICE_ACCOUNT_EMAIL }}
+  CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+
+jobs:
+  store:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The build asks git whether a tag names HEAD: submit must produce a
+          # release build, and a shallow checkout fetches no tags, silently.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - run: npm ci
+
+      # A dev build is the right default everywhere EXCEPT in a store package:
+      # version_name carries the branch name and sha, and that must never ship.
+      - name: submit dispatches on a release tag
+        if: inputs.action == 'submit'
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) tag="${GITHUB_REF#refs/tags/v}" ;;
+            *) echo "::error::dispatch on $GITHUB_REF builds a dev build. Dispatch on a vX.Y.Z tag."; exit 1 ;;
+          esac
+          pkg="$(jq -r .version package.json)"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag names ${tag}, package.json says ${pkg}"
+            exit 1
+          fi
+
+      - name: build
+        if: inputs.action == 'submit'
+        run: |
+          npm run typecheck
+          npm test
+          npm run zip
+
+      # The private key travels through the environment, never through a flag:
+      # npx re-parses its command line through a shell, which splits a
+      # multi-line PEM into one argument per line — and echoes the whole key
+      # into the log.
+      - name: status
+        if: inputs.action == 'status'
+        env:
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+        run: |
+          npx wxt submit status \
+            --chrome-api-version v2 \
+            --chrome-extension-id "$CWS_EXTENSION_ID" \
+            --chrome-publisher-id "$CWS_PUBLISHER_ID"
+
+      - name: submit for review
+        if: inputs.action == 'submit'
+        env:
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+        run: |
+          npx wxt submit \
+            --chrome-api-version v2 \
+            --chrome-zip .output/*-chrome.zip \
+            --chrome-extension-id "$CWS_EXTENSION_ID" \
+            --chrome-publisher-id "$CWS_PUBLISHER_ID" \
+            --chrome-service-account-client-email "$CWS_SERVICE_ACCOUNT_EMAIL"
